@@ -1,0 +1,2293 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script>
+        (function () {
+            var esStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+            if (esStandalone) document.documentElement.classList.add('pwa-standalone');
+        })();
+    </script>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0b0c10">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Dropea">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <link rel="stylesheet" href="pwa.css">
+    <title>Panel Emprendedor | Dropea</title>
+    <link rel="shortcut icon" href="favicon-96x96.png">
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,600;0,700;0,800;1,800&display=swap" rel="stylesheet">
+    <!-- Tipografías adicionales solo para las tarjetas QR personalizables (ver qr-cards.js) -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&family=Playfair+Display:wght@400;700;900&family=Anton&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.min.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+                    },
+                    colors: {
+                        obsidian: '#0b0c10',
+                        surface: '#f8fafc',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Con "letra grande" activada en el celular (accesibilidad), algunos
+           navegadores móviles además aplican su propio "font boosting" (agrandan
+           el texto todavía más, de forma pareja pero sin que el layout se entere)
+           por encima del ajuste que ya hizo el sistema operativo. Esto puede hacer
+           que un texto crezca más de lo esperado y termine metiéndose debajo de
+           elementos con posición fija, como el botón de cerrar del sidebar.
+           Desactivarlo no afecta el ajuste de letra grande del sistema ni el
+           zoom con los dedos: sólo evita ese agrandado extra e impredecible del
+           navegador. */
+        html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        @keyframes fadeIn { 
+            from { opacity: 0; transform: translateY(8px); } 
+            to { opacity: 1; transform: translateY(0); } 
+        }
+        .animate-fade-in { animation: fadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+
+        /* ============================================================
+           ANIMACIONES DE MODALES — entrada y salida suaves
+           ------------------------------------------------------------
+           Antes estos modales pasaban de display:none a flex de golpe
+           (o al revés), así que aparecían/desaparecían "de la nada" sin
+           ninguna transición. Acá los modales que usan la clase Tailwind
+           "hidden" para mostrarse/ocultarse (modal-instructivo,
+           modal-terminos, modal-vencimiento, modal-pago-suscripcion,
+           modal-pago-exitoso) pasan a controlarse por opacidad/escala:
+           dejan de usar display:none (que no se puede animar) y en su
+           lugar el fondo hace fade y el panel entra con una leve subida
+           + escala, y a la inversa al cerrar. El JS no cambia: sigue
+           agregando/quitando la misma clase "hidden".
+           ============================================================ */
+        .modal-overlay.hidden {
+            display: flex !important;
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
+        .modal-overlay:not(.hidden) {
+            opacity: 1;
+            visibility: visible;
+            pointer-events: auto;
+        }
+        .modal-overlay {
+            transition: opacity .3s cubic-bezier(0.16, 1, 0.3, 1), visibility 0s linear .3s;
+        }
+        .modal-overlay:not(.hidden) {
+            transition: opacity .3s cubic-bezier(0.16, 1, 0.3, 1), visibility 0s linear 0s;
+        }
+        /* El panel (la "tarjeta" blanca) entra con una sutil subida + escala,
+           desfasada apenas del fondo para que se sienta como una sola pieza
+           en vez de dos animaciones separadas. */
+        .modal-panel {
+            transform: translateY(22px) scale(0.96);
+            opacity: 0;
+            transition: transform .34s cubic-bezier(0.16, 1, 0.3, 1), opacity .26s ease-out;
+        }
+        .modal-overlay:not(.hidden) .modal-panel {
+            transform: translateY(0) scale(1);
+            opacity: 1;
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .modal-overlay, .modal-overlay .modal-panel { transition-duration: 0.01ms !important; }
+        }
+
+        /* ============================================================
+           FEEDBACK AL PRESIONAR BOTONES
+           ------------------------------------------------------------
+           Todos los botones que ya usan "active:scale-*" de Tailwind
+           quedaban con la curva/duración por defecto (150ms, ease
+           genérico), que se siente un poco plana. Acá se las pisa para
+           que el achique al presionar sea más inmediato y el rebote al
+           soltar tenga un mínimo de "vida" (overshoot sutil), sin tener
+           que tocar botón por botón. El selector matchea por el literal
+           de la clase, así que sólo afecta a los elementos que ya
+           declaran ese comportamiento. */
+        [class*="active:scale-"] {
+            transition-duration: 120ms;
+            transition-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        @media (prefers-reduced-motion: reduce) {
+            [class*="active:scale-"] { transition-duration: 0.01ms !important; }
+        }
+        
+        /* Personalización sutil del scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        /* Scrollbar del sidebar (fondo oscuro): la versión de arriba usa un
+           gris claro pensado para fondos blancos, así que acá la pisamos con
+           un blanco translúcido bien fino para que combine con el sidebar y
+           no se vea gruesa/genérica en navegadores que no la adelgazan solos
+           (algunos WebView de Android). */
+        .sidebar-scroll {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255, 255, 255, .18) transparent;
+        }
+        .sidebar-scroll::-webkit-scrollbar { width: 4px; }
+        .sidebar-scroll::-webkit-scrollbar-track { background: transparent; }
+        .sidebar-scroll::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, .18); border-radius: 9999px; }
+        .sidebar-scroll::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, .32); }
+
+        /* ============================================================
+           MODAL DE PRODUCTO — rediseño compacto (estilo panel admin)
+           Todo escapado bajo #modal-form para no afectar el resto del sitio.
+           ============================================================ */
+        #modal-form {
+            --mp-surface: #ffffff;
+            --mp-surface-2: #f8fafc;
+            --mp-border: #e2e8f0;
+            --mp-border-light: #cbd5e1;
+            --mp-text: #0f172a;
+            --mp-text-mid: #475569;
+            --mp-text-muted: #94a3b8;
+            --mp-accent: #facc15;
+            --mp-accent-ink: #92670a;
+            --mp-accent-glow: rgba(250, 204, 21, 0.18);
+            --mp-dark: #0b0c10;
+            --mp-red: #dc2626;
+            --mp-red-dim: rgba(220, 38, 38, 0.1);
+            --mp-radius: 16px;
+            --mp-radius-sm: 10px;
+
+            position: fixed; top: 0; left: 0; right: 0; z-index: 50;
+            /* Alto real ajustado por JS (visualViewport) para que el teclado
+               virtual nunca tape el campo activo. Con fallback a dvh/vh. */
+            height: 100vh;
+            height: 100dvh;
+            height: var(--app-height, 100dvh);
+            background: rgba(11, 12, 16, 0.75);
+            /* Antes: display:none / .open{display:flex}, un corte seco sin
+               transición posible (display no se anima). Ahora queda siempre
+               en flex y se muestra/oculta con opacidad + visibility, así el
+               fondo puede hacer fade in/out real al abrir y cerrar. */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1.25rem;
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+            transition: opacity .3s cubic-bezier(0.16, 1, 0.3, 1), visibility 0s linear .3s;
+        }
+        #modal-form.open {
+            opacity: 1;
+            visibility: visible;
+            pointer-events: auto;
+            transition: opacity .3s cubic-bezier(0.16, 1, 0.3, 1), visibility 0s linear 0s;
+        }
+
+        #modal-form .modal {
+            background: var(--mp-surface);
+            width: 100%;
+            max-width: 640px;
+            max-height: min(88vh, 760px);
+            max-height: min(88dvh, 760px);
+            max-height: min(calc(var(--app-height, 100dvh) * 0.88), 760px);
+            border-radius: var(--mp-radius);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+            border: 1px solid rgba(255,255,255,0.08);
+            /* Entrada/salida del panel: leve subida + escala, en sincro con
+               el fade del fondo de arriba. */
+            transform: translateY(24px) scale(0.96);
+            opacity: 0;
+            transition: transform .36s cubic-bezier(0.16, 1, 0.3, 1), opacity .28s ease-out;
+        }
+        #modal-form.open .modal {
+            transform: translateY(0) scale(1);
+            opacity: 1;
+        }
+        @media (prefers-reduced-motion: reduce) {
+            #modal-form, #modal-form .modal { transition-duration: 0.01ms !important; }
+        }
+
+        #modal-form .modal-header {
+            flex-shrink: 0;
+            display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem;
+            padding: 1.25rem 1.5rem 1rem;
+            border-bottom: 1px solid var(--mp-border);
+        }
+        #modal-form .modal-title { font-size: 1.1rem; font-weight: 800; color: var(--mp-text); letter-spacing: -0.01em; line-height: 1.2; }
+        #modal-form .modal-subtitle { display: block; font-size: 0.75rem; color: var(--mp-text-muted); margin-top: 0.15rem; font-weight: 500; }
+        #modal-form .modal-close {
+            width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
+            background: var(--mp-surface-2); border: 1px solid var(--mp-border);
+            color: var(--mp-text-muted);
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; transition: background-color .15s, color .15s, transform .12s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        #modal-form .modal-close:hover { background: var(--mp-border); color: var(--mp-text); }
+        #modal-form .modal-close:active { transform: scale(0.9); }
+
+        #modal-form .modal-body {
+            flex: 1; overflow-y: auto; overscroll-behavior: contain;
+            padding: 1.25rem 1.5rem;
+            scrollbar-width: thin;
+        }
+        #modal-form .modal-body::-webkit-scrollbar { width: 5px; }
+        #modal-form .modal-body::-webkit-scrollbar-thumb { background: var(--mp-border-light); border-radius: 99px; }
+
+        #modal-form .modal-footer {
+            flex-shrink: 0; display: flex; gap: 0.75rem;
+            padding: 1rem 1.5rem; border-top: 1px solid var(--mp-border);
+            background: var(--mp-surface);
+        }
+
+        #modal-form .form-section { margin-bottom: 1.35rem; }
+        #modal-form .form-section:last-child { margin-bottom: 0; }
+        #modal-form .form-section-title {
+            font-size: 0.65rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em;
+            color: var(--mp-accent-ink);
+            display: flex; align-items: center; gap: 0.5rem;
+            margin-bottom: 0.85rem;
+        }
+        #modal-form .form-section-title::after { content: ''; flex: 1; height: 1px; background: var(--mp-border); }
+        #modal-form .form-section-title-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.25rem; }
+
+        #modal-form .form-grid { display: grid; gap: 0.85rem; }
+        #modal-form .form-grid-2 { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+        #modal-form .form-group { display: flex; flex-direction: column; gap: 0.35rem; }
+        #modal-form .form-group.span-2 { grid-column: 1 / -1; }
+        /* Par de campos lado a lado (ej. Precio + Precio anterior): siempre 2 columnas parejas que ocupan
+           todo el ancho, y la ayuda va debajo abarcando ambas para que el texto no se parta en varias líneas. */
+        #modal-form .form-subgrid { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 0.85rem; row-gap: 0; }
+        #modal-form .form-subgrid .field-hint { grid-column: 1 / -1; margin: 0.4rem 0 0; }
+        #modal-form label { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--mp-text-mid); }
+        #modal-form .required { color: var(--mp-accent-ink); margin-left: 2px; }
+        #modal-form .field-hint { font-size: 0.71rem; color: var(--mp-text-muted); margin: 0.15rem 0 0; }
+
+        /* Textareas grandes con alto auto-ajustable (bio, anuncio y descripción de producto).
+           El alto lo maneja autoajustarTextarea() en dashboard.js: crece al escribir hasta un
+           máximo y a partir de ahí scrollea por dentro. */
+        .ta-auto { display: block; max-height: 60vh; overflow-y: auto; resize: none; }
+        .ta-bio { min-height: 12rem; }
+        .ta-anuncio { min-height: 6.5rem; }
+        #modal-form textarea.ta-auto {
+            min-height: 7.5rem; max-height: 16rem;
+            padding: 0.75rem 0.9rem; font-size: 0.95rem; line-height: 1.5;
+            resize: none;
+        }
+        @media (max-width: 640px) {
+            .ta-bio { min-height: 10rem; }
+            #modal-form textarea.ta-auto { min-height: 6.5rem; padding: 0.6rem 0.75rem; font-size: 16px; }
+        }
+
+        /* Botón "volver arriba" (solo se muestra en Mis productos, ver actualizarBtnScrollTop en dashboard.js) */
+        .btn-scroll-top {
+            position: fixed; z-index: 20;
+            right: max(1rem, env(safe-area-inset-right));
+            bottom: max(1rem, env(safe-area-inset-bottom));
+            width: 44px; height: 44px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            background: #0b0c10; color: #facc15; border: 0; cursor: pointer;
+            box-shadow: 0 8px 22px rgba(11, 12, 16, 0.3);
+            opacity: 0; visibility: hidden; pointer-events: none;
+            transform: translateY(10px);
+            transition: opacity .2s ease, transform .2s ease, visibility 0s linear .2s, background-color .15s;
+        }
+        .btn-scroll-top.visible {
+            opacity: 1; visibility: visible; pointer-events: auto; transform: translateY(0);
+            transition: opacity .2s ease, transform .2s ease, visibility 0s linear 0s, background-color .15s;
+        }
+        .btn-scroll-top:hover { background: #1e293b; }
+        .btn-scroll-top:active { transform: scale(0.92); }
+        .btn-scroll-top:focus-visible { outline: 2px solid #facc15; outline-offset: 2px; }
+        @media (min-width: 640px) {
+            .btn-scroll-top { right: 1.5rem; bottom: 1.5rem; width: 48px; height: 48px; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .btn-scroll-top, .btn-scroll-top.visible { transition-duration: 0.01ms !important; }
+        }
+
+        #modal-form input[type="text"],
+        #modal-form input[type="number"],
+        #modal-form input[type="url"],
+        #modal-form textarea,
+        #modal-form select {
+            width: 100%;
+            background: var(--mp-surface-2);
+            border: 1px solid var(--mp-border);
+            border-radius: var(--mp-radius-sm);
+            padding: 0.65rem 0.85rem;
+            font-size: 0.875rem; font-weight: 600;
+            color: var(--mp-text);
+            outline: none;
+            transition: border-color .15s, background .15s, box-shadow .15s;
+            font-family: inherit;
+        }
+        #modal-form input:focus, #modal-form textarea:focus, #modal-form select:focus {
+            background: #fff;
+            border-color: var(--mp-dark);
+            box-shadow: 0 0 0 4px var(--mp-accent-glow);
+        }
+        /* Placeholders más chicos que el texto tipeado, para que los textos de
+           ejemplo (que suelen ser largos) no compitan visualmente con los datos
+           reales cargados. No toca el font-size del input en sí: en mobile ese
+           tiene que quedar en 16px para evitar el zoom automático de iOS. */
+        #modal-form input::placeholder,
+        #modal-form textarea::placeholder {
+            font-size: 0.85em;
+            font-weight: 500;
+            color: var(--mp-text-muted);
+            opacity: 1;
+        }
+        #modal-form textarea { resize: vertical; min-height: 64px; }
+        #modal-form select {
+            appearance: none; -webkit-appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E");
+            background-repeat: no-repeat; background-position: right 0.75rem center; background-size: 14px;
+            padding-right: 2.25rem;
+        }
+
+        /* Imagen */
+        #modal-form .img-upload-area {
+            display: block; position: relative;
+            border: 1.5px dashed var(--mp-border-light);
+            border-radius: var(--mp-radius-sm);
+            padding: 0.65rem 0.75rem;
+            text-align: center; cursor: pointer;
+            background: var(--mp-surface-2);
+            transition: all .15s;
+        }
+        #modal-form .img-upload-area:hover { border-color: var(--mp-accent); background: var(--mp-accent-glow); }
+        #modal-form .img-upload-area.has-image { border-style: solid; border-color: var(--mp-accent); padding: 0.4rem; }
+        #modal-form .img-upload-area strong { display: block; font-size: 0.76rem; color: var(--mp-text); }
+        #modal-form .img-upload-area p { font-size: 0.68rem; color: var(--mp-text-muted); margin-top: 0.15rem; }
+        #modal-form .img-upload-area svg { width: 18px; height: 18px; margin: 0 auto 0.3rem; display: block; color: var(--mp-text-muted); }
+        #modal-form .img-preview { width: auto; max-width: 100%; max-height: 84px; object-fit: contain; border-radius: 8px; display: block; margin: 0 auto; }
+        #modal-form .img-upload-input { display: none; }
+        #modal-form .img-uploading {
+            position: absolute; inset: 0; background: rgba(255,255,255,0.9);
+            display: flex; align-items: center; justify-content: center; gap: 0.5rem;
+            font-size: 0.78rem; color: var(--mp-text-muted); border-radius: var(--mp-radius-sm);
+        }
+        #modal-form .img-actions { display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 0.6rem; }
+
+        /* Bug fix: varias reglas de #modal-form (id+class: .img-uploading, .img-preview,
+           .img-actions) tienen más especificidad que la utilidad .hidden de Tailwind
+           (solo class), así que esos elementos quedaban visibles SIEMPRE con su
+           display original, sin importar si el JS les sacaba/ponía la clase "hidden"
+           (por eso aparecían el spinner y el ícono de imagen rota al mismo tiempo que
+           el placeholder). Estas reglas, más específicas todavía, corrigen eso. */
+        #modal-form .img-uploading.hidden,
+        #modal-form .img-preview.hidden,
+        #modal-form .img-actions.hidden,
+        #modal-form .aviso-sin-stock-box.hidden { display: none; }
+        #modal-form .aviso-sin-stock-box {
+            margin-top: 0.6rem; display: flex; align-items: flex-start; gap: 0.5rem;
+            background: var(--mp-red-dim); border: 1px solid rgba(220,38,38,0.25);
+            border-radius: var(--mp-radius-sm); padding: 0.6rem 0.75rem;
+        }
+        #modal-form .spinner-mini { width: 16px; height: 16px; border: 2px solid var(--mp-border-light); border-top-color: var(--mp-accent-ink); border-radius: 50%; animation: mp-spin .7s linear infinite; }
+        @keyframes mp-spin { to { transform: rotate(360deg); } }
+
+        /* Toggle */
+        #modal-form .toggle-row {
+            display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 0.75rem;
+            padding: 0.15rem 0;
+        }
+        #modal-form .toggle-row label { text-transform: none; font-size: 0.8rem; font-weight: 700; color: var(--mp-text); margin: 0; }
+        #modal-form .toggle { position: relative; width: 40px; height: 22px; flex-shrink: 0; cursor: pointer; }
+        #modal-form .toggle input { opacity: 0; width: 0; height: 0; }
+        #modal-form .toggle-slider { position: absolute; inset: 0; background: var(--mp-border-light); border-radius: 99px; transition: .2s; }
+        #modal-form .toggle-slider::before { content: ''; position: absolute; width: 16px; height: 16px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: .2s; box-shadow: 0 1px 3px rgba(0,0,0,0.25); }
+        #modal-form .toggle input:checked + .toggle-slider { background: var(--mp-dark); }
+        #modal-form .toggle input:checked + .toggle-slider::before { transform: translateX(18px); }
+
+        /* Tag picker (medios de pago) */
+        #modal-form .tag-picker { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+        #modal-form .tag-chip {
+            display: inline-flex; align-items: center; gap: 0.3rem;
+            padding: 0.4rem 0.75rem; border-radius: 99px;
+            border: 1.5px solid var(--mp-border-light);
+            background: var(--mp-surface); color: var(--mp-text-mid);
+            font-size: 0.75rem; font-weight: 700; cursor: pointer; transition: all .15s;
+        }
+        #modal-form .tag-chip:hover { border-color: var(--mp-dark); color: var(--mp-text); }
+        #modal-form .tag-chip.selected { background: var(--mp-dark); border-color: var(--mp-dark); color: #fff; }
+
+        /* Variantes
+           Cada fila se arma con celdas (.variant-cell-*) en vez de inputs sueltos,
+           así en mobile podemos reacomodar el grid (ver media query) sin tocar el
+           JS que genera el HTML. */
+        #modal-form .variant-header { display: none; }
+        /* Grid apilado (nombre+valor / precio / stock+borrar) fijo para
+           todos los anchos: el modal nunca supera los 640px de ancho real
+           aunque la ventana sea de escritorio, así que la vieja grilla de
+           5 columnas (2.3fr 2.3fr 1.7fr 112px 34px) terminaba con los
+           botones "Con stock/Sin stock" sin lugar y desbordando encima
+           de la X de borrar variante. Usar siempre el layout apilado
+           evita ese solapamiento. */
+        #modal-form .variant-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-areas:
+                "nombre valor"
+                "precio precio"
+                "stock remove";
+            gap: 0.45rem; align-items: center;
+            background: var(--mp-surface-2); border: 1px solid var(--mp-border); border-radius: var(--mp-radius-sm);
+            padding: 0.55rem; margin-top: 0.5rem; transition: opacity .15s;
+        }
+        #modal-form .variant-row.sin-stock { opacity: 0.75; }
+        #modal-form .variant-cell { min-width: 0; }
+        #modal-form .variant-cell-nombre { grid-area: nombre; }
+        #modal-form .variant-cell-valor { grid-area: valor; }
+        #modal-form .variant-cell-precio { grid-area: precio; }
+        #modal-form .variant-cell-stock { grid-area: stock; }
+        #modal-form .variant-cell-remove { grid-area: remove; justify-self: end; align-self: center; }
+        #modal-form .variant-row input { padding: 0.5rem 0.6rem; font-size: 0.78rem; width: 100%; }
+        #modal-form .variant-cell-precio { display: flex; flex-direction: column; gap: 0.2rem; min-width: 0; }
+        #modal-form .variant-total-hint { font-size: 0.62rem; font-weight: 700; color: var(--mp-text-muted); white-space: nowrap; padding-left: 0.15rem; }
+        #modal-form .variant-cell-remove { display: flex; align-items: center; justify-content: flex-end; }
+        #modal-form .variant-remove { width: 30px; height: 30px; border-radius: 8px; border: none; background: transparent; color: var(--mp-text-muted); cursor: pointer; font-size: 0.85rem; display: flex; align-items: center; justify-content: center; transition: all .15s; flex-shrink: 0; }
+        #modal-form .variant-remove:hover { background: var(--mp-red-dim); color: var(--mp-red); }
+
+        /* "Con stock / Sin stock" por variante: dos botones separados y
+           siempre visibles — se toca directamente el que corresponde,
+           sin interruptores ni estados que haya que interpretar. El
+           botón activo queda resaltado en color. */
+        #modal-form .variant-stock-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; }
+        #modal-form .variant-stock-btn {
+            display: flex; align-items: center; justify-content: center; gap: 0.35rem;
+            padding: 0.55rem 0.4rem; border-radius: 8px; border: 1.5px solid var(--mp-border);
+            background: var(--mp-surface-2); color: var(--mp-text-muted);
+            font-size: 0.64rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.02em;
+            cursor: pointer; transition: all .15s; white-space: nowrap;
+        }
+        #modal-form .variant-stock-btn-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; opacity: 0.4; flex-shrink: 0; }
+        #modal-form .variant-stock-btn.activo-on { background: rgba(22,163,74,0.1); color: #16a34a; border-color: rgba(22,163,74,0.35); }
+        #modal-form .variant-stock-btn.activo-on .variant-stock-btn-dot { opacity: 1; }
+        #modal-form .variant-stock-btn.activo-off { background: var(--mp-red-dim); color: var(--mp-red); border-color: rgba(220,38,38,0.35); }
+        #modal-form .variant-stock-btn.activo-off .variant-stock-btn-dot { opacity: 1; }
+        #modal-form .variant-stock-btn:active { transform: scale(0.96); }
+
+        #modal-form .empty-variants { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; border: 1.5px dashed var(--mp-border-light); border-radius: var(--mp-radius-sm); padding: 0.75rem 0.9rem; }
+        #modal-form .empty-variants p { font-size: 0.75rem; color: var(--mp-text-muted); }
+        #modal-form .empty-variants button { font-size: 0.75rem; font-weight: 700; color: var(--mp-accent-ink); background: none; border: none; cursor: pointer; text-decoration: underline; white-space: nowrap; }
+
+        /* Botones */
+        #modal-form .btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem; font-size: 0.75rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; padding: 0.7rem 1rem; border-radius: var(--mp-radius-sm); border: none; cursor: pointer; transition: background-color .15s, color .15s, border-color .15s, opacity .15s, transform .12s cubic-bezier(0.34, 1.56, 0.64, 1); }
+        #modal-form .btn:active:not(:disabled) { transform: scale(0.96); }
+        #modal-form .btn-primary { background: var(--mp-dark); color: #fff; flex: 2; }
+        #modal-form .btn-primary:hover { background: var(--mp-accent); color: var(--mp-dark); }
+        #modal-form .btn-primary:disabled { opacity: 0.6; cursor: default; }
+        #modal-form .btn-ghost { background: var(--mp-surface-2); color: var(--mp-text-mid); border: 1px solid var(--mp-border); flex: 1; }
+        #modal-form .btn-ghost:hover { border-color: var(--mp-border-light); color: var(--mp-text); }
+        #modal-form .btn-danger { background: var(--mp-red-dim); color: var(--mp-red); border: 1px solid rgba(220,38,38,0.2); }
+        #modal-form .btn-danger:hover { background: rgba(220,38,38,0.18); }
+        #modal-form .btn-sm { padding: 0.4rem 0.7rem; font-size: 0.68rem; flex: none; }
+
+        /* Responsive: bottom sheet en mobile + fix de teclado/zoom iOS */
+        @media (max-width: 640px) {
+            #modal-form { padding: 0; align-items: flex-end; }
+            /* Altura real: vh en mobile no descuenta la barra de direcciones del navegador,
+               por eso el sheet terminaba "comiéndose" la pantalla y tapando el botón Guardar.
+               dvh sí la descuenta; se deja vh como fallback para navegadores viejos. */
+            #modal-form .modal {
+                border-radius: 18px 18px 0 0;
+                max-height: 96vh;
+                max-height: 92dvh;
+                max-width: 100%;
+                position: relative;
+                /* En mobile el panel entra como hoja deslizando desde abajo
+                   en vez de aparecer con escala, que se siente más natural
+                   para un bottom sheet. */
+                transform: translateY(100%);
+            }
+            #modal-form.open .modal {
+                transform: translateY(0);
+            }
+            /* Manija visual: deja claro que es una hoja que se puede deslizar/cerrar, no la pantalla entera */
+            #modal-form .modal::before {
+                content: '';
+                position: absolute; top: 0.45rem; left: 50%; transform: translateX(-50%);
+                width: 34px; height: 4px; border-radius: 99px; background: var(--mp-border-light);
+            }
+            #modal-form .modal-header { padding: 1.1rem 1rem 0.55rem; }
+            #modal-form .modal-title { font-size: 0.88rem; }
+            #modal-form .modal-subtitle { font-size: 0.65rem; margin-top: 0.1rem; }
+            #modal-form .modal-close { width: 24px; height: 24px; }
+            #modal-form .modal-close svg { width: 10px; height: 10px; }
+            #modal-form .modal-body { padding: 0.6rem 1rem; }
+            #modal-form .modal-footer {
+                padding: 0.5rem 1rem;
+                gap: 0.5rem;
+                /* Espacio para el home-indicator de iOS, así los botones no quedan pegados/tapados */
+                padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+            }
+            #modal-form .form-section { margin-bottom: 0.4rem; }
+            #modal-form .form-section-title { font-size: 0.55rem; margin-bottom: 0.3rem; }
+            #modal-form .form-grid { gap: 0.3rem; }
+            #modal-form .form-grid-2 { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); }
+            #modal-form .form-group { gap: 0.18rem; }
+            #modal-form .form-subgrid { column-gap: 0.3rem; }
+            #modal-form .form-subgrid .field-hint { margin-top: 0.2rem; }
+            #modal-form label { font-size: 0.6rem; }
+            #modal-form .field-hint { font-size: 0.6rem; margin-top: 0.08rem; }
+            #modal-form input[type="text"],
+            #modal-form input[type="number"],
+            #modal-form input[type="url"],
+            #modal-form textarea,
+            #modal-form select {
+                font-size: 16px; /* evita el zoom automático de iOS al enfocar, que es lo que descuadra todo con el teclado abierto */
+                padding: 0.32rem 0.55rem;
+                border-radius: 8px;
+            }
+            #modal-form textarea { min-height: 30px; }
+            #modal-form select { padding-right: 1.8rem; background-size: 11px; }
+            #modal-form .img-upload-area { padding: 0.4rem 0.55rem; border-radius: 8px; }
+            #modal-form .img-upload-area svg { width: 14px; height: 14px; margin-bottom: 0.15rem; }
+            #modal-form .img-upload-area strong { font-size: 0.66rem; }
+            #modal-form .img-upload-area p { font-size: 0.58rem; margin-top: 0.1rem; }
+            #modal-form .img-preview { max-height: 64px; }
+            #modal-form .toggle-row { padding: 0.1rem 0; gap: 0.5rem; }
+            #modal-form .toggle-row label { font-size: 0.72rem; }
+            #modal-form .toggle { width: 34px; height: 19px; }
+            #modal-form .toggle-slider::before { width: 13px; height: 13px; }
+            #modal-form .toggle input:checked + .toggle-slider::before { transform: translateX(15px); }
+            #modal-form .tag-chip { padding: 0.26rem 0.5rem; font-size: 0.65rem; }
+            #modal-form .btn { padding: 0.5rem 0.7rem; font-size: 0.66rem; }
+            #modal-form .btn-sm { padding: 0.28rem 0.5rem; font-size: 0.6rem; }
+            /* El grid apilado (nombre+valor / precio / stock+borrar) ya es
+               la base para todos los anchos; acá solo achicamos un poco
+               más el padding para pantallas de celular. */
+            #modal-form .variant-row { padding: 0.55rem; margin-top: 0.45rem; border-radius: 10px; }
+            #modal-form .variant-row input { padding: 0.45rem 0.55rem; font-size: 16px; border-radius: 7px; }
+            #modal-form .variant-remove { width: 34px; height: 34px; }
+            #modal-form .variant-stock-btn { padding: 0.5rem 0.3rem; font-size: 0.6rem; gap: 0.25rem; }
+            #modal-form .variant-total-hint { font-size: 0.58rem; }
+            #modal-form .empty-variants { padding: 0.45rem 0.6rem; }
+            #modal-form .empty-variants p { font-size: 0.65rem; }
+            #modal-form .empty-variants button { font-size: 0.65rem; }
+        }
+        /* ============================================================
+           SECCIÓN QR — cartel/sticker/historia para imprimir
+           Orden: 1) formato arriba  2) vista previa al centro
+           3) color / tipografía / guardar en una fila abajo.
+           Color y Tipografía abren un panel ANCLADO debajo del botón
+           (mismo patrón que los filtros de index.html), no un modal.
+           ============================================================ */
+
+        /* Tiles de formato: grilla de 3, ícono + texto centrado */
+        .qr-tile {
+            border: 2px solid #e2e8f0; border-radius: 13px; padding: 0.65rem 0.4rem;
+            cursor: pointer; transition: all .15s; background: #fff; width: 100%;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            text-align: center; gap: 0.25rem;
+        }
+        .qr-tile:hover { border-color: #cbd5e1; background: #f8fafc; }
+        .qr-tile-activo { border-color: #facc15 !important; background: #fffbeb !important; }
+        .qr-tile-icon { width: 18px; height: 18px; color: #64748b; flex-shrink: 0; }
+        .qr-tile-activo .qr-tile-icon { color: #92670a; }
+        .qr-tile-label { font-size: 0.72rem; font-weight: 800; color: #0f172a; line-height: 1.15; }
+        .qr-tile-sub { font-size: 0.6rem; font-weight: 600; color: #94a3b8; line-height: 1.2; }
+
+        /* Botones "Color" / "Tipografía": pill que abre un panel anclado
+           arriba del botón, igual que los filtros de index.html (no modal). */
+        .qr-trigger-pill {
+            display: inline-flex; align-items: center; gap: 0.45rem;
+            border: 1.5px solid #e2e8f0; border-radius: 9999px; background: #fff;
+            padding: 0.5rem 0.85rem; cursor: pointer; transition: all .15s;
+            font-size: 0.76rem; font-weight: 800; color: #334155; white-space: nowrap;
+        }
+        .qr-trigger-pill:hover { border-color: #cbd5e1; background: #f8fafc; }
+        .qr-trigger-swatch {
+            width: 20px; height: 20px; border-radius: 9999px; flex-shrink: 0;
+            border: 2px solid #fff; box-shadow: 0 0 0 1px #e2e8f0;
+        }
+        .qr-trigger-aa { font-size: 0.9rem; font-weight: 800; color: #0b0c10; line-height: 1; width: 16px; text-align: center; flex-shrink: 0; }
+        .qr-trigger-chevron { width: 11px; height: 11px; flex-shrink: 0; color: #94a3b8; transition: transform .15s; }
+        .qr-trigger-chevron.rotate-180 { transform: rotate(180deg); }
+
+        .qr-btn-guardar {
+            display: inline-flex; align-items: center; gap: 0.45rem;
+            border-radius: 9999px; background: #0b0c10; color: #fff; border: none;
+            padding: 0.55rem 1.05rem; cursor: pointer; transition: all .15s;
+            font-size: 0.76rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.02em;
+        }
+        .qr-btn-guardar:hover { background: #facc15; color: #0b0c10; }
+        .qr-btn-guardar:disabled { opacity: 0.6; cursor: default; }
+        .qr-btn-guardar-icon { width: 16px; height: 16px; flex-shrink: 0; }
+
+        /* Panel de "Color" / "Tipografía": mismo estilo que los paneles de
+           filtro de index.html (blanco, borde negro grueso). Es position:fixed
+           y su posición (arriba o abajo del botón, siempre dentro de la
+           pantalla) la calcula JS en cada apertura — ver posicionarPanelQR()
+           en qr-cards.js. No usar position:absolute acá: al estar anidado
+           dentro de una sección con animación (transform), un absolute mal
+           anclado puede quedar cortado arriba de la pantalla o hacer que
+           la página salte de scroll al abrir/cerrar. */
+        .qr-dropdown-panel {
+            position: fixed; left: 0; top: 0;
+            width: 19rem; max-width: calc(100vw - 2rem);
+            overflow-y: auto; overscroll-behavior: contain;
+            background: #fff; border: 2px solid #0b0c10; border-radius: 16px;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.28);
+            padding: 0.75rem; z-index: 60;
+        }
+
+        /* Paleta de color: círculos de muestra, con anillo cuando está activa */
+        .qr-paleta-grid { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+        .qr-color-swatch {
+            width: 30px; height: 30px; border-radius: 9999px; flex-shrink: 0;
+            border: 2px solid #fff; cursor: pointer; transition: transform .15s, box-shadow .15s;
+            box-shadow: 0 0 0 1px #e2e8f0;
+        }
+        .qr-color-swatch:hover { transform: scale(1.1); }
+        .qr-color-swatch.qr-color-activa { box-shadow: 0 0 0 2px #fff, 0 0 0 4px #0b0c10; }
+
+        /* Tipografía: filas con previsualización "Aa" y check al
+           seleccionar (mismo lenguaje visual que las opciones de filtro). */
+        .qr-fuente-opcion {
+            border-radius: 10px; padding: 0.5rem 0.65rem;
+            cursor: pointer; transition: all .15s; background: #fff; width: 100%;
+            display: flex; align-items: center; gap: 0.6rem; text-align: left;
+        }
+        .qr-fuente-opcion:hover { background: #fefce8; }
+        .qr-fuente-opcion.qr-fuente-activa { background: #0b0c10; }
+        .qr-fuente-opcion .qr-fuente-preview { font-size: 1.05rem; font-weight: 800; width: 1.5rem; text-align: center; flex-shrink: 0; color: #0b0c10; }
+        .qr-fuente-opcion.qr-fuente-activa .qr-fuente-preview { color: #facc15; }
+        .qr-fuente-opcion .qr-fuente-nombre { font-size: 0.75rem; font-weight: 700; color: #334155; }
+        .qr-fuente-opcion.qr-fuente-activa .qr-fuente-nombre { color: #fff; }
+        .qr-fuente-opcion .qr-fuente-check { margin-left: auto; color: #facc15; font-weight: 900; font-size: 0.85rem; display: none; flex-shrink: 0; }
+        .qr-fuente-opcion.qr-fuente-activa .qr-fuente-check { display: block; }
+
+        /* ============================================================
+           MODAL: PAGO DE SUSCRIPCIÓN — rediseño mobile-first
+           Mismo patrón que #modal-form: bottom sheet en mobile con
+           manija, alto ajustado al teclado real vía visualViewport
+           (--app-height-pago, seteada en dashboard.js), y una tarjeta
+           de monto + skeleton de carga en vez de texto plano, para que
+           se sienta a la altura del resto del panel mientras carga el
+           Card Payment Brick de MercadoPago.
+           ============================================================ */
+        #modal-pago-suscripcion {
+            --mps-surface-2: #f8fafc;
+            --mps-border: #e2e8f0;
+            --mps-border-light: #cbd5e1;
+            --mps-text-muted: #94a3b8;
+            --mps-accent-ink: #92670a;
+            height: 100vh;
+            height: 100dvh;
+            height: var(--app-height-pago, 100dvh);
+        }
+        #modal-pago-suscripcion .mps-sheet {
+            /* Antes tenía un tope fijo de 640px en TODAS las resoluciones, lo
+               que generaba scroll innecesario en pantallas grandes con mucho
+               alto disponible. Ahora el tope sube a 760px y usa más % de
+               alto de viewport, así en desktop/notebooks entra todo sin
+               scroll y sólo hace scroll cuando el viewport es realmente chico. */
+            max-height: min(92vh, 760px);
+            max-height: min(92dvh, 760px);
+            max-height: min(calc(var(--app-height-pago, 100dvh) * 0.92), 760px);
+        }
+        #modal-pago-suscripcion .mps-handle { display: none; }
+
+        #modal-pago-suscripcion .mps-header {
+            display: flex; align-items: center; gap: 0.75rem;
+            padding: 1.1rem 1.85rem 0;
+        }
+        #modal-pago-suscripcion .mps-header-icon {
+            width: 36px; height: 36px; border-radius: 11px; flex-shrink: 0;
+            display: flex; align-items: center; justify-content: center;
+            background: linear-gradient(135deg, #fef9c3, #fde68a);
+            color: var(--mps-accent-ink);
+        }
+        #modal-pago-suscripcion .mps-header-icon svg { width: 17px; height: 17px; }
+
+        #modal-pago-suscripcion .mps-monto-card {
+            display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
+            background: var(--mps-surface-2); border: 1px solid var(--mps-border);
+            border-radius: 14px; padding: 0.7rem 1rem; margin: 0.85rem 0;
+        }
+        #modal-pago-suscripcion .mps-monto-icon {
+            width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0;
+            background: #fff; border: 1px solid var(--mps-border);
+            display: flex; align-items: center; justify-content: center; color: var(--mps-text-muted);
+        }
+        #modal-pago-suscripcion .mps-monto-icon svg { width: 16px; height: 16px; }
+
+        /* Skeleton del formulario mientras carga el Brick */
+        #modal-pago-suscripcion .mps-skeleton-row {
+            height: 44px; border-radius: 10px; margin-bottom: 0.65rem;
+            background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 37%, #f1f5f9 63%);
+            background-size: 400% 100%;
+            animation: mps-shimmer 1.4s ease infinite;
+        }
+        @keyframes mps-shimmer { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
+
+        #modal-pago-suscripcion .mps-trust {
+            display: flex; align-items: center; gap: 0.6rem;
+            padding: 0.65rem 1.85rem;
+            border-top: 1px solid var(--mps-border);
+            background: var(--mps-surface-2);
+            flex-shrink: 0;
+        }
+        #modal-pago-suscripcion .mps-trust svg { width: 17px; height: 17px; flex-shrink: 0; color: var(--mps-text-muted); }
+
+        @media (max-width: 640px) {
+            #modal-pago-suscripcion { padding: 0; align-items: flex-end; }
+            #modal-pago-suscripcion .mps-sheet {
+                border-radius: 22px 22px 0 0 !important;
+                max-height: 94vh; max-height: 92dvh;
+                max-width: 100%; width: 100%;
+                position: relative;
+                /* Bottom sheet: entra deslizando desde abajo en vez de con
+                   escala, igual que el modal de producto en mobile. */
+                transform: translateY(100%);
+            }
+            #modal-pago-suscripcion:not(.hidden) .mps-sheet {
+                transform: translateY(0);
+            }
+            #modal-pago-suscripcion .mps-handle {
+                display: block; position: absolute; top: 0.55rem; left: 50%; transform: translateX(-50%);
+                width: 36px; height: 4px; border-radius: 99px; background: var(--mps-border-light); z-index: 20;
+            }
+            #modal-pago-suscripcion .mps-header { padding: 1.15rem 1rem 0; }
+            /* Menos padding lateral en mobile: el Card Payment Brick apila
+               vencimiento/CVV en dos filas cuando el ancho disponible cae
+               por debajo de cierto punto interno de MercadoPago. Con
+               px-6/px-7 (24-28px) de cada lado, en celulares angostos
+               (~360-375px) quedaban ~310px para el Brick, justo debajo de
+               ese umbral. Bajando a 1rem (16px) por lado le damos margen. */
+            #modal-pago-suscripcion .mps-body { padding-left: 1rem; padding-right: 1rem; padding-bottom: 0.85rem; }
+            #modal-pago-suscripcion .mps-trust {
+                padding: 0.7rem 1.35rem;
+                padding-bottom: max(0.7rem, env(safe-area-inset-bottom));
+            }
+        }
+    </style>
+</head>
+<body class="bg-[#f1f5f9] text-slate-900 antialiased min-h-screen selection:bg-yellow-400 selection:text-black">
+
+    <!-- ===== PWA: splash screen (solo visible con la app instalada) ===== -->
+    <div class="pwa-splash" aria-hidden="true">
+        <div class="pwa-splash__glow-a"></div>
+        <div class="pwa-splash__glow-b"></div>
+        <div class="pwa-splash__content">
+            <div class="pwa-splash__logo" style="width:min(68vw,260px);height:auto;border-radius:0;background:none;box-shadow:none;border:0;padding:0">
+                <img src="dropea-logo.png" alt="Dropea" style="width:100%;height:auto;filter:invert(1)">
+            </div>
+            <div class="pwa-splash__bar"><div class="pwa-splash__bar-fill"></div></div>
+        </div>
+    </div>
+
+
+    <div class="flex flex-col md:flex-row min-h-screen">
+
+        <!-- TOP BAR MOBILE -->
+        <header class="md:hidden sticky top-0 z-30 flex items-center justify-between gap-3 bg-zinc-950 text-white px-4 py-3 border-b border-white/10 shadow-lg">
+            <div class="flex items-center min-w-0">
+                <img src="dropea-logo.png" alt="Dropea" class="h-9 w-auto object-contain invert">
+            </div>
+            <button onclick="abrirSidebarMobile()" aria-label="Abrir menú" class="w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 transition-all">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+            </button>
+        </header>
+
+        <!-- OVERLAY MOBILE -->
+        <div id="sidebar-overlay" onclick="cerrarSidebarMobile()" class="hidden fixed inset-0 bg-black/70 z-30 md:hidden"></div>
+
+        <!-- SIDEBAR. Mismo lenguaje visual que la web: negro de marca (como el footer),
+             destellos de 4 puntas del logo, tipografía en mayúsculas y la "sombra dura"
+             amarilla del botón de acción. Los ítems activo/inactivo los define
+             NAV_ACTIVO / NAV_INACTIVO en dashboard.js (mostrarSeccion pisa el className).
+             El scroll vive en el wrapper interno, no acá: así el footer de "Cerrar Sesión"
+             queda siempre debajo, en vez de que el contenido de arriba (que puede crecer
+             con letra grande + pantalla chica) se desborde encima de él. -->
+        <aside id="sidebar" class="fixed md:sticky inset-y-0 left-0 md:top-0 md:h-screen w-72 max-w-[85vw] -translate-x-full md:translate-x-0 transition-transform duration-300 ease-out overflow-hidden bg-zinc-950 text-white p-5 md:p-6 flex flex-col border-r border-white/10 rounded-r-[2rem] z-40 shadow-2xl">
+
+            <!-- Decoración (no interactiva) -->
+            <div class="pointer-events-none absolute -top-24 -right-24 w-64 h-64 rounded-full" style="background: radial-gradient(closest-side, rgba(250,204,21,.16), transparent);" aria-hidden="true"></div>
+            <svg class="pointer-events-none absolute top-6 right-16 md:right-7 w-7 h-7 text-yellow-400" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 0c.6 6.2 5.8 11.4 12 12-6.2.6-11.4 5.8-12 12-.6-6.2-5.8-11.4-12-12C6.2 11.4 11.4 6.2 12 0z"/></svg>
+            <svg class="pointer-events-none absolute top-[4.25rem] right-24 md:right-16 w-3 h-3 text-white/40" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 0c.6 6.2 5.8 11.4 12 12-6.2.6-11.4 5.8-12 12-.6-6.2-5.8-11.4-12-12C6.2 11.4 11.4 6.2 12 0z"/></svg>
+
+            <button onclick="cerrarSidebarMobile()" aria-label="Cerrar menú" class="md:hidden absolute top-4 right-4 z-20 w-9 h-9 rounded-full bg-white/10 border border-white/15 flex items-center justify-center text-white hover:bg-yellow-400 hover:text-black hover:border-yellow-400 transition">
+                ✕
+            </button>
+            <div class="sidebar-scroll relative z-10 flex-1 flex flex-col min-h-0 overflow-y-auto overflow-x-hidden -mr-2 pr-2">
+                <!-- Logo. pr-12 en mobile reserva el espacio del botón ✕ (position:absolute),
+                     para que con "letra grande" el contenido baje de línea en vez de meterse debajo. -->
+                <div class="mb-6 pr-12 md:pr-0">
+                    <img src="dropea-logo.png" alt="Dropea" class="h-14 w-auto max-w-full object-contain invert">
+                </div>
+
+                <!-- Tarjeta de cuenta -->
+                <div class="flex items-center gap-3 mb-7 bg-white/[0.04] border border-white/10 p-3 rounded-[1.5rem]">
+                    <div class="relative flex-shrink-0 p-[3px] bg-white rounded-full">
+                        <div id="avatar-sidebar" class="w-10 h-10 rounded-full bg-black text-yellow-400 flex items-center justify-center font-black text-base overflow-hidden relative">
+                            <img id="avatar-sidebar-img" src="" alt="" class="hidden absolute inset-0 w-full h-full object-cover">
+                            <span id="avatar-sidebar-letra">?</span>
+                        </div>
+                        <span class="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-400 border-2 border-zinc-950" title="Sesión activa"></span>
+                    </div>
+                    <div class="min-w-0 flex-1">
+                        <p id="nombre-tienda-sidebar" class="text-white font-black text-sm leading-tight truncate"></p>
+                        <p id="usuario-sidebar" class="text-zinc-500 text-[11px] font-bold truncate mt-0.5"></p>
+                    </div>
+                </div>
+
+                <!-- CTA SIEMPRE VISIBLE: compartir el perfil con un clic -->
+                <div class="mb-6">
+                    <button type="button" id="btn-compartir-perfil" onclick="copiarLinkPerfil()" class="w-full flex items-center justify-center gap-2.5 bg-yellow-400 text-black px-5 py-3.5 rounded-full font-black text-[11px] uppercase tracking-widest shadow-[4px_4px_0_0_#ffffff] hover:bg-yellow-300 active:translate-x-[2px] active:translate-y-[2px] active:shadow-[2px_2px_0_0_#ffffff] transition-all">
+                        <svg id="btn-compartir-perfil-icono" class="w-[18px] h-[18px] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4" d="M8.684 13.342a4 4 0 100 3.316m0-3.316a4 4 0 100-3.316m0 3.316l6.632 3.316m-6.632-6.632l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/></svg>
+                        <span id="btn-compartir-perfil-texto">Copiar link de mi perfil</span>
+                    </button>
+                </div>
+                <!-- Navegación principal: sigue el orden del proceso (tienda -> catálogo -> compartir) -->
+                <nav class="space-y-2">
+                    <button id="nav-inicio" onclick="mostrarSeccion('inicio'); cerrarSidebarMobile()" class="w-full text-left px-5 py-3 rounded-full transition-all duration-150 flex items-center gap-3 group text-[11px] font-black uppercase tracking-widest bg-white text-black shadow-[4px_4px_0_0_#facc15] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[2px_2px_0_0_#facc15]">
+                        <svg class="w-[18px] h-[18px] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+                        <span class="flex-1">Inicio</span>
+                    </button>
+                    <p class="px-5 pt-4 mb-2 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-600">1 · Tu tienda</p>
+                    <button id="nav-perfil" onclick="mostrarSeccion('perfil'); cerrarSidebarMobile()" class="w-full text-left px-5 py-3 rounded-full transition-all duration-150 flex items-center gap-3 group text-[11px] font-black uppercase tracking-widest text-zinc-400 hover:text-yellow-400 hover:bg-white/5">
+                        <svg class="w-[18px] h-[18px] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14c-4.418 0-8 2.239-8 5v1h16v-1c0-2.761-3.582-5-8-5z"/></svg>
+                        <span class="flex-1">Mis datos</span>
+                    </button>
+                    <p class="px-5 pt-4 mb-2 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-600">2 · Tu catálogo</p>
+                    <button id="nav-productos" onclick="mostrarSeccion('productos'); cerrarSidebarMobile()" class="w-full text-left px-5 py-3 rounded-full transition-all duration-150 flex items-center gap-3 group text-[11px] font-black uppercase tracking-widest text-zinc-400 hover:text-yellow-400 hover:bg-white/5">
+                        <svg class="w-[18px] h-[18px] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+                        <span class="flex-1">Mis productos</span>
+                    </button>
+                    <button id="nav-categorias" onclick="mostrarSeccion('categorias'); cerrarSidebarMobile()" class="w-full text-left px-5 py-3 rounded-full transition-all duration-150 flex items-center gap-3 group text-[11px] font-black uppercase tracking-widest text-zinc-400 hover:text-yellow-400 hover:bg-white/5">
+                        <svg class="w-[18px] h-[18px] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/></svg>
+                        <span class="flex-1">Mis categorías</span>
+                    </button>
+                    <button id="nav-anuncios" onclick="mostrarSeccion('anuncios'); cerrarSidebarMobile()" class="w-full text-left px-5 py-3 rounded-full transition-all duration-150 flex items-center gap-3 group text-[11px] font-black uppercase tracking-widest text-zinc-400 hover:text-yellow-400 hover:bg-white/5">
+                        <svg class="w-[18px] h-[18px] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"/></svg>
+                        <span class="flex-1">Anuncios</span>
+                    </button>
+                    <p class="px-5 pt-4 mb-2 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-600">3 · Compartir</p>
+                    <button id="nav-qr" onclick="mostrarSeccion('qr'); cerrarSidebarMobile()" class="w-full text-left px-5 py-3 rounded-full transition-all duration-150 flex items-center gap-3 group text-[11px] font-black uppercase tracking-widest text-zinc-400 hover:text-yellow-400 hover:bg-white/5">
+                        <svg class="w-[18px] h-[18px] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M4 4h6v6H4V4zm10 0h6v6h-6V4zM4 14h6v6H4v-6zm11 0h1.5v1.5H15V14zm3 0h1.5v1.5H18V14zm-3 3h1.5v1.5H15V17zm3 0h1.5v1.5H18V17zm-1.5 3H15v-1.5m4.5 1.5H18v-1.5"/></svg>
+                        <span class="flex-1">Compartir y QR</span>
+                    </button>
+                    <div class="pt-5 mt-5 border-t border-white/10 space-y-2">
+                        <p class="px-5 mb-2 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-600">Dropea</p>
+                        <button id="nav-soporte" onclick="mostrarSeccion('soporte'); cerrarSidebarMobile()" class="w-full text-left px-5 py-3 rounded-full transition-all duration-150 flex items-center gap-3 group text-[11px] font-black uppercase tracking-widest text-zinc-400 hover:text-yellow-400 hover:bg-white/5">
+                            <svg class="w-[18px] h-[18px] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M12 9v6m0-6a3 3 0 100 6 3 3 0 000-6zm0-6a9 9 0 100 18 9 9 0 000-18zm6.364 2.636l-2.121 2.121M7.757 16.243l-2.121 2.121m0-12.728l2.121 2.121M16.243 16.243l2.121 2.121"/></svg>
+                            <span class="flex-1">Ayuda</span>
+                        </button>
+                        <button id="nav-pagos" onclick="mostrarSeccion('pagos'); cerrarSidebarMobile()" class="w-full text-left px-5 py-3 rounded-full transition-all duration-150 flex items-center gap-3 group text-[11px] font-black uppercase tracking-widest text-zinc-400 hover:text-yellow-400 hover:bg-white/5">
+                            <svg class="w-[18px] h-[18px] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                            <span class="flex-1">Pagos</span>
+                        </button>
+                    </div>
+                </nav>
+            </div>
+
+            <!-- Footer Sidebar / Cerrar Sesión (siempre visible) -->
+            <div class="relative z-10 pt-5 border-t border-white/10 mt-5 flex-shrink-0">
+                <button onclick="confirmarCerrarSesion()" class="w-full flex items-center justify-center gap-2 rounded-full border-2 border-white/15 text-zinc-300 hover:border-rose-400 hover:text-rose-400 hover:bg-rose-500/10 px-4 py-3 text-[11px] font-black uppercase tracking-widest transition-all active:scale-95">
+                    <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+                    <span>Cerrar Sesión</span>
+                </button>
+            </div>
+        </aside>
+
+        <!-- CONTENEDOR PRINCIPAL -->
+        <main class="flex-1 p-4 sm:p-6 md:p-8 lg:p-12 xl:p-14 max-w-7xl mx-auto w-full min-w-0">
+
+            <!-- BANNER: TIENDA BLOQUEADA -->
+            <div id="banner-tienda-bloqueada" class="hidden mb-6 md:mb-8 bg-red-50 border border-red-200 rounded-2xl p-4 sm:p-5 flex items-start gap-3 sm:gap-4">
+                <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-red-500 text-white flex items-center justify-center flex-shrink-0 text-lg font-black">!</div>
+                <div class="min-w-0">
+                    <p id="banner-tienda-bloqueada-titulo" class="font-extrabold text-red-700 text-sm sm:text-base">Tu tienda está bloqueada</p>
+                    <p id="banner-tienda-bloqueada-motivo" class="text-red-600/90 text-xs sm:text-sm font-medium mt-1 leading-relaxed"></p>
+                    <p class="text-red-500/80 text-[11px] sm:text-xs font-semibold mt-2">
+                        Mientras esté bloqueada, tu tienda no se muestra en Dropea. Podés seguir cargando y editando productos desde acá, pero no van a ser visibles hasta que se reactive. No se eliminaron tus productos.
+                    </p>
+                </div>
+            </div>
+
+            <!-- SECCIÓN: INICIO (portada del panel: bienvenida, primeros pasos, compartir y resumen) -->
+            <section id="section-inicio" class="animate-fade-in">
+                <div class="max-w-4xl space-y-4 sm:space-y-6">
+
+                    <!-- BIENVENIDA -->
+                    <div class="relative overflow-hidden bg-obsidian text-white rounded-2xl sm:rounded-3xl p-5 sm:p-8 md:p-10 shadow-[6px_6px_0_0_#facc15]">
+                        <!-- Decoración: resplandor amarillo, puntos y un local de fondo -->
+                        <div aria-hidden="true" class="pointer-events-none absolute inset-0" style="background: radial-gradient(circle at 100% 0%, rgba(250,204,21,.20), transparent 45%), radial-gradient(circle at 0% 100%, rgba(250,204,21,.06), transparent 40%);"></div>
+                        <div aria-hidden="true" class="pointer-events-none absolute inset-0 opacity-40" style="background-image: radial-gradient(rgba(255,255,255,.16) 1px, transparent 1px); background-size: 18px 18px; -webkit-mask-image: linear-gradient(to left, #000, transparent 60%); mask-image: linear-gradient(to left, #000, transparent 60%);"></div>
+                        <svg aria-hidden="true" class="pointer-events-none absolute -right-3 -bottom-5 w-40 h-40 sm:w-56 sm:h-56 text-yellow-400 opacity-[.08] -rotate-12" fill="none" stroke="currentColor" stroke-width="1.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4h16l1 5a3 3 0 01-6 0 3 3 0 01-6 0 3 3 0 01-6 0l1-5zM5 12v8h14v-8M10 20v-5h4v5"/></svg>
+
+                        <div class="relative flex items-center gap-4 sm:gap-6">
+                            <div class="relative flex-shrink-0">
+                                <div class="relative w-14 h-14 sm:w-[72px] sm:h-[72px] md:w-20 md:h-20 rounded-2xl sm:rounded-3xl bg-white/10 ring-2 ring-yellow-400/80 overflow-hidden flex items-center justify-center">
+                                    <img id="inicio-avatar-img" src="" alt="" class="hidden absolute inset-0 w-full h-full object-contain bg-white p-1">
+                                    <span id="inicio-avatar-letra" class="text-2xl sm:text-3xl font-black text-yellow-400"><span class="block rounded-full motion-safe:animate-pulse w-6 h-6 sm:w-8 sm:h-8 bg-white/15"></span></span>
+                                </div>
+                                <span id="inicio-momento" class="opacity-0 transition-opacity duration-500 absolute -bottom-1.5 -right-1.5 w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-obsidian border-2 border-yellow-400 flex items-center justify-center text-xs sm:text-sm leading-none"></span>
+                            </div>
+                            <div class="min-w-0 flex-1">
+                                <p id="inicio-saludo" class="flex items-center gap-2 text-yellow-400 text-[10px] sm:text-[11px] font-black uppercase tracking-[0.2em]">
+                                    <span class="w-5 h-0.5 rounded-full bg-yellow-400 flex-shrink-0"></span>
+                                    <span id="inicio-saludo-texto" class="truncate"><span class="block rounded-full motion-safe:animate-pulse h-2.5 w-44 max-w-full bg-yellow-400/25"></span></span>
+                                </p>
+                                <h1 id="inicio-titulo" class="mt-2 text-2xl md:text-4xl font-extrabold tracking-tight leading-tight break-words"><span class="block rounded-full motion-safe:animate-pulse h-7 md:h-9 w-4/5 max-w-md !rounded-lg bg-white/10"></span></h1>
+                                <p id="inicio-subtitulo" class="mt-2 text-zinc-400 text-sm md:text-base max-w-xl"><span class="block rounded-full motion-safe:animate-pulse h-3.5 w-full max-w-lg bg-white/10"></span></p>
+                            </div>
+                        </div>
+
+                        <div class="relative mt-5 sm:mt-6 flex flex-wrap items-center gap-2.5">
+                            <span id="inicio-estado" class="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-wider px-3 py-1.5 rounded-full bg-white/10 text-zinc-300">
+                                <span id="inicio-estado-punto" class="w-2 h-2 rounded-full bg-zinc-400"></span>
+                                <span id="inicio-estado-texto"><span class="block rounded-full motion-safe:animate-pulse h-2.5 w-28 bg-white/15"></span></span>
+                            </span>
+                            <button type="button" onclick="abrirFormulario()" class="inline-flex items-center gap-2 bg-yellow-400 text-black px-4 py-2 rounded-full font-black text-[11px] uppercase tracking-wider hover:bg-yellow-300 active:scale-95 transition-all">
+                                <span class="text-base leading-none">+</span><span>Nuevo producto</span>
+                            </button>
+                            <a id="link-ir-a-mi-perfil-hero" href="index.html" target="_blank" rel="noopener" class="inline-flex items-center gap-1.5 bg-white/10 text-white px-4 py-2 rounded-full font-black text-[11px] uppercase tracking-wider hover:bg-white/20 active:scale-95 transition-all">
+                                <span>Ver mi tienda</span>
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- PRIMEROS PASOS -->
+                    <div id="inicio-checklist" class="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 border border-slate-200/80 shadow-sm">
+                        <div class="flex items-end justify-between gap-3 mb-3">
+                            <div class="min-w-0">
+                                <h2 class="font-extrabold text-slate-900 text-base sm:text-lg">Primeros pasos</h2>
+                                <p class="text-xs text-slate-400 mt-0.5">Seguí el orden y tu tienda queda lista para compartir.</p>
+                            </div>
+                            <p id="inicio-progreso-texto" class="flex-shrink-0 text-xs font-black uppercase tracking-wider text-slate-400"><span class="block rounded-full motion-safe:animate-pulse h-3 w-12 bg-slate-200"></span></p>
+                        </div>
+                        <div class="h-2 rounded-full bg-slate-100 overflow-hidden mb-4 sm:mb-5">
+                            <div id="inicio-progreso-barra" class="h-full w-0 rounded-full bg-yellow-400 transition-all duration-500"></div>
+                        </div>
+                        <ol id="inicio-pasos" class="space-y-2 sm:space-y-2.5">
+                            <li class="flex items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-slate-200 bg-white">
+                                <span class="w-8 h-8 rounded-full flex-shrink-0 bg-slate-100 motion-safe:animate-pulse"></span>
+                                <div class="flex-1 min-w-0 space-y-2">
+                                    <span class="block h-3 w-40 max-w-[70%] rounded-full bg-slate-200 motion-safe:animate-pulse"></span>
+                                    <span class="block h-2.5 w-56 max-w-[90%] rounded-full bg-slate-100 motion-safe:animate-pulse"></span>
+                                </div>
+                                <span class="hidden sm:block h-8 w-24 rounded-full bg-slate-100 motion-safe:animate-pulse"></span>
+                            </li>
+                            <li class="flex items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-slate-200 bg-white">
+                                <span class="w-8 h-8 rounded-full flex-shrink-0 bg-slate-100 motion-safe:animate-pulse"></span>
+                                <div class="flex-1 min-w-0 space-y-2">
+                                    <span class="block h-3 w-40 max-w-[70%] rounded-full bg-slate-200 motion-safe:animate-pulse"></span>
+                                    <span class="block h-2.5 w-56 max-w-[90%] rounded-full bg-slate-100 motion-safe:animate-pulse"></span>
+                                </div>
+                                <span class="hidden sm:block h-8 w-24 rounded-full bg-slate-100 motion-safe:animate-pulse"></span>
+                            </li>
+                            <li class="flex items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-slate-200 bg-white">
+                                <span class="w-8 h-8 rounded-full flex-shrink-0 bg-slate-100 motion-safe:animate-pulse"></span>
+                                <div class="flex-1 min-w-0 space-y-2">
+                                    <span class="block h-3 w-40 max-w-[70%] rounded-full bg-slate-200 motion-safe:animate-pulse"></span>
+                                    <span class="block h-2.5 w-56 max-w-[90%] rounded-full bg-slate-100 motion-safe:animate-pulse"></span>
+                                </div>
+                                <span class="hidden sm:block h-8 w-24 rounded-full bg-slate-100 motion-safe:animate-pulse"></span>
+                            </li>
+                        </ol>
+                    </div>
+
+                    <!-- TIENDA LISTA (reemplaza al checklist cuando están los 4 pasos obligatorios) -->
+                    <div id="inicio-listo" class="hidden bg-emerald-50 border border-emerald-200 rounded-2xl sm:rounded-3xl p-4 sm:p-6 flex items-start gap-3 sm:gap-4">
+                        <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-emerald-500 text-white flex items-center justify-center flex-shrink-0">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.8" d="M5 13l4 4L19 7"/></svg>
+                        </div>
+                        <div class="min-w-0">
+                            <h2 class="font-extrabold text-emerald-800 text-base sm:text-lg">¡Tu tienda está lista!</h2>
+                            <p id="inicio-listo-texto" class="text-emerald-700/90 text-sm mt-1">Completaste todos los pasos. Cada vez que cargues productos nuevos, compartí el link de nuevo.</p>
+                        </div>
+                    </div>
+
+                    <!-- COMPARTIR -->
+                    <div class="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 border border-slate-200/80 shadow-sm">
+                        <h2 class="font-extrabold text-slate-900 text-base sm:text-lg">Compartí tu perfil</h2>
+                        <p class="text-xs sm:text-sm text-slate-400 mt-0.5">Pegalo en la bio de Instagram, mandalo por WhatsApp o imprimí tu cartel QR.</p>
+                        <p id="inicio-link-texto" class="mt-4 font-mono text-xs sm:text-sm font-bold text-slate-900 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-3 truncate"></p>
+                        <div class="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-2.5 mt-3">
+                            <button type="button" onclick="copiarLinkPerfil()" class="flex items-center justify-center gap-2 bg-yellow-400 text-black px-3 py-3 rounded-xl font-black text-[11px] sm:text-xs uppercase tracking-wider hover:bg-yellow-300 transition-all">Copiar link</button>
+                            <button type="button" onclick="compartirPerfilWhatsApp()" class="flex items-center justify-center gap-2 bg-emerald-500 text-white px-3 py-3 rounded-xl font-black text-[11px] sm:text-xs uppercase tracking-wider hover:bg-emerald-600 transition-all">WhatsApp</button>
+                            <a id="link-ir-a-mi-perfil-inicio" href="index.html" target="_blank" rel="noopener" class="flex items-center justify-center gap-2 bg-slate-100 text-slate-700 px-3 py-3 rounded-xl font-black text-[11px] sm:text-xs uppercase tracking-wider hover:bg-slate-200 transition-all">Ver perfil</a>
+                            <button type="button" onclick="mostrarSeccion('qr')" class="flex items-center justify-center gap-2 bg-slate-100 text-slate-700 px-3 py-3 rounded-xl font-black text-[11px] sm:text-xs uppercase tracking-wider hover:bg-slate-200 transition-all">Cartel QR</button>
+                        </div>
+                    </div>
+
+                    <!-- RESUMEN DEL CATÁLOGO -->
+                    <div class="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
+                        <button type="button" onclick="mostrarSeccion('productos')" class="text-left bg-white rounded-xl sm:rounded-2xl p-3.5 sm:p-5 border border-slate-200/80 shadow-sm hover:border-slate-300 hover:shadow-md transition-all">
+                            <p id="inicio-stat-visibles" class="text-2xl sm:text-3xl font-black text-slate-900 leading-none"><span class="block rounded-full motion-safe:animate-pulse h-7 sm:h-8 w-10 !rounded-md bg-slate-200"></span></p>
+                            <p class="text-[10px] sm:text-[11px] font-black uppercase tracking-widest text-slate-400 mt-2">Visibles</p>
+                        </button>
+                        <button type="button" onclick="mostrarSeccion('productos')" class="text-left bg-white rounded-xl sm:rounded-2xl p-3.5 sm:p-5 border border-slate-200/80 shadow-sm hover:border-slate-300 hover:shadow-md transition-all">
+                            <p id="inicio-stat-sinstock" class="text-2xl sm:text-3xl font-black text-slate-900 leading-none"><span class="block rounded-full motion-safe:animate-pulse h-7 sm:h-8 w-10 !rounded-md bg-slate-200"></span></p>
+                            <p class="text-[10px] sm:text-[11px] font-black uppercase tracking-widest text-slate-400 mt-2">Sin stock</p>
+                        </button>
+                        <button type="button" onclick="mostrarSeccion('productos')" class="text-left bg-white rounded-xl sm:rounded-2xl p-3.5 sm:p-5 border border-slate-200/80 shadow-sm hover:border-slate-300 hover:shadow-md transition-all">
+                            <p id="inicio-stat-destacados" class="text-2xl sm:text-3xl font-black text-slate-900 leading-none"><span class="block rounded-full motion-safe:animate-pulse h-7 sm:h-8 w-10 !rounded-md bg-slate-200"></span></p>
+                            <p class="text-[10px] sm:text-[11px] font-black uppercase tracking-widest text-slate-400 mt-2">Destacados</p>
+                        </button>
+                        <button type="button" onclick="mostrarSeccion('categorias')" class="text-left bg-white rounded-xl sm:rounded-2xl p-3.5 sm:p-5 border border-slate-200/80 shadow-sm hover:border-slate-300 hover:shadow-md transition-all">
+                            <p id="inicio-stat-categorias" class="text-2xl sm:text-3xl font-black text-slate-900 leading-none"><span class="block rounded-full motion-safe:animate-pulse h-7 sm:h-8 w-10 !rounded-md bg-slate-200"></span></p>
+                            <p class="text-[10px] sm:text-[11px] font-black uppercase tracking-widest text-slate-400 mt-2">Categorías</p>
+                        </button>
+                    </div>
+
+                    <!-- PARA REVISAR (sólo aparece si hay algo que mejorar) -->
+                    <div id="inicio-revisar" class="hidden bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 border border-slate-200/80 shadow-sm">
+                        <h2 class="font-extrabold text-slate-900 text-base sm:text-lg">Para mejorar tu catálogo</h2>
+                        <p class="text-xs text-slate-400 mt-0.5 mb-3 sm:mb-4">Pequeños detalles que ayudan a vender más.</p>
+                        <ul id="inicio-revisar-lista" class="divide-y divide-slate-100"></ul>
+                    </div>
+
+                </div>
+            </section>
+
+            <!-- SECCIÓN: MIS PRODUCTOS -->
+            <section id="section-productos" class="hidden animate-fade-in">
+                <header class="flex flex-col xl:flex-row xl:items-end justify-between gap-4 xl:gap-6 mb-6 md:mb-10 pb-6 border-b border-slate-200/80">
+                    <div>
+                        <h1 class="text-2xl md:text-4xl font-extrabold tracking-tight text-slate-900">
+                            Productos cargados
+                        </h1>
+                        <p class="text-slate-500 text-sm md:text-base mt-2">
+                            Administra tus productos. Marcá hasta 3 como <strong class="text-slate-700">Destacados</strong> para que aparezcan primero en tu perfil.
+                        </p>
+                        <p id="contador-productos" class="text-slate-400 text-xs font-bold uppercase tracking-wider mt-3"></p>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2 sm:gap-3 shrink-0">
+                        <button type="button" onclick="abrirInstructivo()"
+                            class="inline-flex items-center justify-center gap-2 bg-white border border-slate-200 text-slate-600 px-3.5 sm:px-5 py-2.5 sm:py-3.5 rounded-xl sm:rounded-2xl font-bold text-xs sm:text-sm hover:border-obsidian hover:text-obsidian transition-all duration-200 active:scale-95">
+                            <span>Instructivo</span>
+                        </button>
+                        <button id="btn-nuevo-producto-header" onclick="abrirFormulario()" class="inline-flex items-center justify-center gap-2 bg-obsidian text-white px-4 sm:px-6 py-2.5 sm:py-3.5 rounded-xl sm:rounded-2xl font-bold text-xs sm:text-sm hover:bg-yellow-400 hover:text-black transition-all duration-200 shadow-xl shadow-slate-900/10 hover:shadow-yellow-400/25 active:scale-95 group">
+                            <span class="text-lg leading-none group-hover:rotate-90 transition-transform duration-300">+</span>
+                            <span>Nuevo producto</span>
+                        </button>
+                    </div>
+                </header>
+
+                <!-- BUSCADOR + FILTROS -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_auto_auto] gap-2.5 sm:gap-3 mb-5 sm:mb-6">
+                    <div class="relative sm:col-span-2 xl:col-span-1 min-w-0">
+                        <svg class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 10.5a6.5 6.5 0 11-13 0 6.5 6.5 0 0113 0z"/>
+                        </svg>
+                        <input type="text" id="filtro-busqueda-productos" placeholder="Buscar producto por nombre..." oninput="onFiltroBusquedaProductos()"
+                            class="w-full bg-white border border-slate-200 rounded-xl sm:rounded-2xl pl-10 pr-4 py-2.5 sm:py-3 text-sm font-semibold text-slate-900 placeholder:text-slate-400 placeholder:font-medium focus:bg-white focus:border-obsidian focus:ring-4 focus:ring-yellow-400/20 outline-none transition-all">
+                    </div>
+                    <select id="filtro-estado-productos" onchange="onFiltroCambiado()"
+                        class="w-full min-w-0 xl:w-auto bg-white border border-slate-200 rounded-xl sm:rounded-2xl px-3.5 py-2.5 sm:py-3 text-sm font-bold text-slate-700 focus:border-obsidian focus:ring-4 focus:ring-yellow-400/20 outline-none transition-all cursor-pointer">
+                        <option value="todos">Todos los estados</option>
+                        <option value="visibles">Visibles</option>
+                        <option value="ocultos">Ocultos</option>
+                    </select>
+                    <select id="filtro-categoria-productos" onchange="onFiltroCambiado()"
+                        class="w-full min-w-0 xl:w-auto bg-white border border-slate-200 rounded-xl sm:rounded-2xl px-3.5 py-2.5 sm:py-3 text-sm font-bold text-slate-700 focus:border-obsidian focus:ring-4 focus:ring-yellow-400/20 outline-none transition-all cursor-pointer">
+                        <option value="">Todas las categorías</option>
+                    </select>
+                </div>
+
+                <!-- GRID DE PRODUCTOS -->
+                <div id="grid-productos" class="grid grid-cols-2 md:grid-cols-[repeat(auto-fill,minmax(10.5rem,1fr))] lg:grid-cols-[repeat(auto-fill,minmax(11.5rem,1fr))] xl:grid-cols-[repeat(auto-fill,minmax(12.5rem,1fr))] 2xl:grid-cols-[repeat(auto-fill,minmax(15rem,1fr))] gap-2.5 sm:gap-5 xl:gap-6">
+                    <div class="col-span-full flex flex-col items-center justify-center gap-3 py-24 text-slate-400 font-semibold">
+                        <svg class="w-6 h-6 animate-spin text-slate-300" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                        <span>Cargando productos...</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECCIÓN: CATEGORÍAS DE MI TIENDA -->
+            <section id="section-categorias" class="hidden animate-fade-in">
+                <header class="mb-6 md:mb-10 pb-6 border-b border-slate-200/80">
+                    <h1 class="text-2xl md:text-4xl font-extrabold tracking-tight text-slate-900">Categorías de mi tienda</h1>
+                    <p class="text-slate-500 text-sm md:text-base mt-2 max-w-3xl">
+                        Armá el menú de tu tienda a tu manera. Podés crear categorías y dentro de ellas subcategorías
+                        (hasta 3 niveles).
+                    </p>
+                </header>
+
+                <div class="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 mb-6 shadow-sm">
+                    <label for="cat-nueva-nombre" class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2">Nueva categoría</label>
+                    <div class="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_minmax(0,16rem)_auto] gap-2.5">
+                        <input type="text" id="cat-nueva-nombre" maxlength="200" placeholder="Nombre de la categoría" autocomplete="off"
+                            onkeydown="if (event.key === 'Enter') { event.preventDefault(); agregarCategoriasTienda(); }"
+                            class="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-3 text-sm font-semibold text-slate-900 placeholder:text-slate-400 placeholder:font-medium focus:border-obsidian focus:ring-4 focus:ring-yellow-400/20 outline-none transition-all">
+                        <select id="cat-nueva-padre" aria-label="Dónde va la categoría"
+                            class="w-full min-w-0 bg-white border border-slate-200 rounded-xl px-3.5 py-3 text-sm font-bold text-slate-700 focus:border-obsidian focus:ring-4 focus:ring-yellow-400/20 outline-none transition-all cursor-pointer">
+                            <option value="">Categoría principal</option>
+                        </select>
+                        <button type="button" id="btn-agregar-categoria" onclick="agregarCategoriasTienda()"
+                            class="inline-flex items-center justify-center gap-2 bg-obsidian text-white px-6 py-3 rounded-xl font-bold text-sm hover:bg-yellow-400 hover:text-black transition-all active:scale-95">
+                            <span class="text-lg leading-none">+</span><span>Agregar</span>
+                        </button>
+                    </div>
+                    <p class="text-xs text-slate-400 font-medium mt-2.5">Podés cargar varias juntas separándolas con coma. Elegí en el desplegable si van dentro de otra categoría.</p>
+                </div>
+
+                <div id="lista-categorias-tienda" class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden divide-y divide-slate-100">
+                    <p class="text-center text-slate-400 font-semibold py-16">Cargando categorías...</p>
+                </div>
+            </section>
+
+            <!-- SECCIÓN: MI PERFIL -->
+            <section id="section-perfil" class="hidden animate-fade-in">
+                <header class="flex flex-col sm:flex-row sm:items-end justify-between gap-4 sm:gap-6 mb-6 md:mb-10 pb-6 border-b border-slate-200/80">
+                    <div>
+                        <h1 class="text-2xl md:text-4xl font-extrabold tracking-tight text-slate-900">
+                            Mis datos
+                        </h1>
+                        <p class="text-slate-500 text-sm md:text-base mt-2">
+                            Define la identidad visual y los canales de contacto de tu negocio.
+                        </p>
+                    </div>
+                </header>
+
+
+                <div class="max-w-3xl space-y-4 sm:space-y-6">
+
+                    <!-- IDENTIDAD DE MARCA -->
+                    <div class="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 border border-slate-200/80 shadow-sm">
+                        <div class="flex items-center gap-2.5 sm:gap-3 mb-4 sm:mb-6">
+                            <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-yellow-400/15 text-yellow-700 flex items-center justify-center flex-shrink-0">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7l2-4h14l2 4M3 7v11a2 2 0 002 2h14a2 2 0 002-2V7M3 7h18M8 11a2 2 0 104 0 2 2 0 00-4 0z"/></svg>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <h2 class="font-extrabold text-slate-900 text-sm sm:text-base">Identidad de marca</h2>
+                                <p class="text-xs text-slate-400">Cómo te van a ver en Dropea</p>
+                            </div>
+                            <button type="button" onclick="mostrarSeccion('qr')" class="flex-shrink-0 flex items-center gap-1.5 bg-yellow-400 text-black px-3 sm:px-4 py-2 rounded-xl font-bold text-[11px] sm:text-xs uppercase tracking-wide hover:bg-obsidian hover:text-white transition-all active:scale-95">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4h6v6H4V4zm10 0h6v6h-6V4zM4 14h6v6H4v-6z"/></svg>
+                                <span class="hidden sm:inline">Cartel QR</span>
+                                <span class="sm:hidden">QR</span>
+                            </button>
+                        </div>
+
+                        <div class="space-y-4 sm:space-y-6">
+                            <div class="flex items-center gap-4">
+                                <div class="relative w-16 h-16 rounded-2xl overflow-hidden border border-slate-200 bg-slate-50 flex-shrink-0">
+                                    <img id="p-logo-preview" src="" class="hidden absolute inset-0 w-full h-full object-cover">
+                                    <div id="p-logo-preview-placeholder" class="w-full h-full flex items-center justify-center text-slate-300">
+                                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14M4 8h16M4 4h16a1 1 0 011 1v14a1 1 0 01-1 1H4a1 1 0 01-1-1V5a1 1 0 011-1z"/></svg>
+                                    </div>
+                                    <div id="p-logo-spinner" class="hidden absolute inset-0 bg-white/85 flex items-center justify-center">
+                                        <svg class="w-5 h-5 animate-spin text-slate-400" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                    </div>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
+                                        Logo
+                                    </label>
+                                    <button type="button" onclick="document.getElementById('p-logo-input').click()" class="inline-flex items-center gap-2 py-2.5 px-4 rounded-xl text-xs font-bold uppercase tracking-wider bg-obsidian text-white hover:bg-yellow-400 hover:text-black transition-colors cursor-pointer">
+                                        Elegir imagen
+                                    </button>
+                                    <input type="file" id="p-logo-input" accept="image/jpeg,image/jpg,image/png,image/webp" onchange="manejarSeleccionLogo(event)" class="hidden">
+                                    <p class="text-[11px] text-slate-400 mt-1.5">JPG, PNG o WebP · máx 3MB</p>
+                                    <input type="hidden" id="p-logo">
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
+                                    Nombre del emprendimiento
+                                </label>
+                                <input type="text" id="p-nombre" class="w-full bg-slate-50/50 border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-3.5 text-slate-900 font-semibold text-sm focus:bg-white focus:border-obsidian focus:ring-4 focus:ring-yellow-400/20 outline-none transition-all">
+                            </div>
+
+                            <div id="campo-banner-portada">
+                                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
+                                    Banner / Portada <span class="text-slate-400 font-normal lowercase">(opcional)</span>
+                                </label>
+                                <div class="flex items-center gap-4">
+                                    <div class="relative w-24 h-14 rounded-xl overflow-hidden border border-slate-200 bg-slate-50 flex-shrink-0">
+                                        <img id="p-banner-preview" src="" class="hidden absolute inset-0 w-full h-full object-cover">
+                                        <div id="p-banner-preview-placeholder" class="w-full h-full flex items-center justify-center text-slate-300">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14M4 8h16M4 4h16a1 1 0 011 1v14a1 1 0 01-1 1H4a1 1 0 01-1-1V5a1 1 0 011-1z"/></svg>
+                                        </div>
+                                        <div id="p-banner-spinner" class="hidden absolute inset-0 bg-white/85 flex items-center justify-center">
+                                            <svg class="w-5 h-5 animate-spin text-slate-400" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                        </div>
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <button type="button" onclick="document.getElementById('p-banner-input').click()" class="inline-flex items-center gap-2 py-2.5 px-4 rounded-xl text-xs font-bold uppercase tracking-wider bg-obsidian text-white hover:bg-yellow-400 hover:text-black transition-colors cursor-pointer">
+                                            Elegir imagen
+                                        </button>
+                                        <input type="file" id="p-banner-input" accept="image/jpeg,image/jpg,image/png,image/webp" onchange="manejarSeleccionBanner(event)" class="hidden">
+                                        <p class="text-[11px] text-slate-400 mt-1.5">Imagen ancha para arriba de tu perfil público. JPG, PNG o WebP · máx 3MB</p>
+                                        <input type="hidden" id="p-banner">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div id="campo-descripcion-bio">
+                                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
+                                    Descripción / Bio de la marca
+                                </label>
+                                <textarea id="p-bio" rows="7" data-autogrow class="ta-auto ta-bio w-full bg-slate-50/50 border border-slate-200 rounded-xl sm:rounded-2xl p-3.5 sm:p-4 text-slate-900 font-medium text-base leading-relaxed focus:bg-white focus:border-obsidian focus:ring-4 focus:ring-yellow-400/20 outline-none transition-all resize-none" placeholder="Cuéntale a tus clientes qué hace única a tu marca..."></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- CONTACTO Y UBICACIÓN -->
+                    <div id="card-contacto-ubicacion" class="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 border border-slate-200/80 shadow-sm">
+                        <div class="flex items-center gap-2.5 sm:gap-3 mb-4 sm:mb-6">
+                            <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-emerald-400/15 text-emerald-700 flex items-center justify-center flex-shrink-0">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.828 0l-4.243-4.243a8 8 0 1111.314 0z"/><circle cx="12" cy="11" r="2.5"/></svg>
+                            </div>
+                            <div>
+                                <h2 class="font-extrabold text-slate-900 text-sm sm:text-base">Contacto y ubicación</h2>
+                                <p class="text-xs text-slate-400">Para que te encuentren y te escriban</p>
+                            </div>
+                        </div>
+
+                        <div class="space-y-4 sm:space-y-6">
+                            <div>
+                                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
+                                    WhatsApp <span class="text-slate-400 font-normal lowercase">(característica + número)</span>
+                                </label>
+                                <div class="flex items-stretch bg-slate-50/50 border border-slate-200 rounded-xl sm:rounded-2xl overflow-hidden focus-within:bg-white focus-within:border-obsidian focus-within:ring-4 focus-within:ring-yellow-400/20 transition-all">
+                                    <span class="flex items-center px-3 sm:px-3.5 text-slate-500 font-semibold text-sm bg-slate-100/70 border-r border-slate-200 select-none whitespace-nowrap flex-shrink-0">+54 9</span>
+                                    <input type="text" id="p-whatsapp" placeholder="Ej: 3644123456" inputmode="numeric" class="w-full min-w-0 bg-transparent p-3 sm:p-3.5 text-slate-900 font-semibold text-sm outline-none">
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                                <div>
+                                    <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
+                                        Ubicación / Zona
+                                    </label>
+                                    <input type="text" id="p-ubicacion" placeholder="Ej: Villa Ángela, Chaco" class="w-full bg-slate-50/50 border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-3.5 text-slate-900 font-semibold text-sm focus:bg-white focus:border-obsidian focus:ring-4 focus:ring-yellow-400/20 outline-none transition-all">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
+                                        Link de Google Maps <span class="text-slate-400 font-normal lowercase">(opcional)</span>
+                                    </label>
+                                    <input type="url" id="p-mapa" placeholder="https://maps.app.goo.gl/..." class="w-full bg-slate-50/50 border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-3.5 text-slate-900 font-semibold text-sm focus:bg-white focus:border-obsidian focus:ring-4 focus:ring-yellow-400/20 outline-none transition-all">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
+                                    Horario de atención
+                                </label>
+                                <input type="text" id="p-horario" placeholder="Ej: Lunes a viernes de 9 a 18hs" class="w-full bg-slate-50/50 border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-3.5 text-slate-900 font-semibold text-sm focus:bg-white focus:border-obsidian focus:ring-4 focus:ring-yellow-400/20 outline-none transition-all">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- REDES SOCIALES -->
+                    <div id="card-redes-sociales" class="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 border border-slate-200/80 shadow-sm">
+                        <div class="flex items-center gap-2.5 sm:gap-3 mb-4 sm:mb-6">
+                            <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-sky-400/15 text-sky-700 flex items-center justify-center flex-shrink-0">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342a4 4 0 100-2.684m0 2.684a4 4 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a4 4 0 105.367-1.925 4 4 0 00-5.367 1.925zm0 9.316a4 4 0 105.368 1.925 4 4 0 00-5.368-1.925z"/></svg>
+                            </div>
+                            <div>
+                                <h2 class="font-extrabold text-slate-900 text-sm sm:text-base">Redes sociales</h2>
+                                <p class="text-xs text-slate-400">Opcional, sumá tus enlaces</p>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
+                            <div>
+                                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
+                                    Instagram
+                                </label>
+                                <input type="text" id="p-instagram" autocomplete="off" placeholder="tu_usuario" class="w-full bg-slate-50/50 border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-3.5 text-slate-900 font-semibold text-sm focus:bg-white focus:border-obsidian focus:ring-4 focus:ring-yellow-400/20 outline-none transition-all">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
+                                    Facebook
+                                </label>
+                                <input type="url" id="p-facebook" placeholder="https://facebook.com/tu_pagina" class="w-full bg-slate-50/50 border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-3.5 text-slate-900 font-semibold text-sm focus:bg-white focus:border-obsidian focus:ring-4 focus:ring-yellow-400/20 outline-none transition-all">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
+                                    TikTok
+                                </label>
+                                <input type="text" id="p-tiktok" autocomplete="off" placeholder="tu_usuario" class="w-full bg-slate-50/50 border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-3.5 text-slate-900 font-semibold text-sm focus:bg-white focus:border-obsidian focus:ring-4 focus:ring-yellow-400/20 outline-none transition-all">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- MEDIOS DE PAGO (sólo aplica a cuentas que venden productos) -->
+                    <div id="card-medios-pago-envio" class="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 border border-slate-200/80 shadow-sm">
+                        <div class="flex items-center gap-2.5 sm:gap-3 mb-4 sm:mb-6">
+                            <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-violet-400/15 text-violet-700 flex items-center justify-center flex-shrink-0">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-9 4h16a1 1 0 001-1V6a1 1 0 00-1-1H4a1 1 0 00-1 1v12a1 1 0 001 1z"/></svg>
+                            </div>
+                            <div>
+                                <h2 class="font-extrabold text-slate-900 text-sm sm:text-base">Medios de pago</h2>
+                                <p class="text-xs text-slate-400">Elegí los que aceptás; después los asignás por producto</p>
+                            </div>
+                        </div>
+                        <div id="medios-pago-perfil" class="flex flex-wrap gap-2"></div>
+
+                        <div class="mt-5 sm:mt-6 pt-5 sm:pt-6 border-t border-slate-100">
+                            <label class="flex items-start gap-3 cursor-pointer">
+                                <input type="checkbox" id="p-recibe-pedidos" class="mt-1 w-4 h-4 accent-black">
+                                <span>
+                                    <span class="block text-sm font-bold text-slate-900">Recibir pedidos por WhatsApp</span>
+                                    <span class="block text-xs text-slate-400 mt-0.5">Si lo desactivás, tu tienda funciona solo como catálogo. Necesitás tener cargado tu WhatsApp.</span>
+                                </span>
+                            </label>
+                        </div>
+
+                        <div class="mt-5 sm:mt-6 pt-5 sm:pt-6 border-t border-slate-100">
+                            <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
+                                Costo de envío ($)
+                            </label>
+                            <input type="text" inputmode="decimal" id="p-costo-envio" placeholder="0"
+                                oninput="sanitizarInputPrecio(this)" onblur="formatearInputPrecio(this)"
+                                class="w-full sm:w-64 bg-slate-50/50 border border-slate-200 rounded-xl sm:rounded-2xl p-3 sm:p-3.5 text-slate-900 font-semibold text-sm focus:bg-white focus:border-obsidian focus:ring-4 focus:ring-yellow-400/20 outline-none transition-all">
+                            <p class="text-xs text-slate-400 mt-2">Dejalo vacío o en 0 si no cobrás envío. Este monto se suma automáticamente al total del carrito y se incluye en el mensaje de WhatsApp del pedido.</p>
+                        </div>
+                    </div>
+
+                    <!-- Guardar (acceso rápido al final del formulario) -->
+                    <div class="flex justify-end pb-2">
+                        <button onclick="guardarPerfil()" id="btn-guardar-perfil-2" class="w-full sm:w-auto bg-obsidian text-white px-6 sm:px-10 py-3 sm:py-4 rounded-xl sm:rounded-2xl font-bold uppercase text-xs tracking-widest hover:bg-yellow-400 hover:text-black transition-all duration-200 shadow-xl shadow-slate-900/10 active:scale-95">
+                            Guardar Perfil
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECCIÓN: AYUDA -->
+            <section id="section-soporte" class="hidden animate-fade-in">
+                <header class="flex flex-col sm:flex-row sm:items-end justify-between gap-4 sm:gap-6 mb-6 md:mb-10 pb-6 border-b border-slate-200/80">
+                    <div>
+                        <h1 class="text-2xl md:text-4xl font-extrabold tracking-tight text-slate-900">
+                            Ayuda
+                        </h1>
+                        <p class="text-slate-500 text-sm md:text-base mt-2">
+                            Comunicate con nosotros ante cualquier duda o problema.
+                        </p>
+                    </div>
+                </header>
+
+                <div class="max-w-3xl space-y-4 sm:space-y-6">
+
+                    <!-- REPORTAR UN PROBLEMA -->
+                    <div class="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 border border-slate-200/80 shadow-sm">
+                        <div class="flex items-center gap-2.5 sm:gap-3 mb-4 sm:mb-6">
+                            <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-red-400/15 text-red-600 flex items-center justify-center flex-shrink-0">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"/></svg>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <h2 class="font-extrabold text-slate-900 text-sm sm:text-base">Reportar un problema</h2>
+                                <p class="text-xs text-slate-400">Contanos qué error o inconveniente encontraste en la plataforma</p>
+                            </div>
+                        </div>
+
+                        <form id="form-reportar-problema" class="space-y-4">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-600 mb-1.5" id="reporte-tipo-label">Tipo de problema</label>
+                                <!-- Select personalizado: el <select> nativo se ve muy distinto (y feo)
+                                     entre navegador/SO, sobre todo en mobile. Este botón + lista
+                                     replica el mismo look que el resto del formulario en todos lados.
+                                     El input oculto sigue siendo el valor real que lee dashboard.js. -->
+                                <div class="relative">
+                                    <input type="hidden" id="reporte-tipo" value="">
+                                    <button
+                                        type="button"
+                                        id="reporte-tipo-trigger"
+                                        onclick="toggleReporteTipoDropdown()"
+                                        aria-haspopup="listbox"
+                                        aria-expanded="false"
+                                        aria-labelledby="reporte-tipo-label reporte-tipo-texto"
+                                        class="w-full flex items-center justify-between gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-3 text-sm text-left text-slate-400 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent transition-all"
+                                    >
+                                        <span id="reporte-tipo-texto">Seleccioná una opción</span>
+                                        <svg id="reporte-tipo-flecha" class="w-4 h-4 flex-shrink-0 text-slate-400 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>
+                                    </button>
+                                    <ul
+                                        id="reporte-tipo-lista"
+                                        role="listbox"
+                                        tabindex="-1"
+                                        class="hidden absolute z-20 left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-lg shadow-slate-900/10 overflow-hidden py-1"
+                                    >
+                                        <li role="option" aria-selected="false" data-valor="Error tecnico" onclick="seleccionarReporteTipo('Error tecnico', 'Error técnico (algo no funciona)')" class="px-3.5 py-2.5 text-sm text-slate-700 hover:bg-yellow-50 active:bg-yellow-100 cursor-pointer transition-colors">Error técnico (algo no funciona)</li>
+                                        <li role="option" aria-selected="false" data-valor="Problema de pago" onclick="seleccionarReporteTipo('Problema de pago', 'Problema con un pago o la suscripción')" class="px-3.5 py-2.5 text-sm text-slate-700 hover:bg-yellow-50 active:bg-yellow-100 cursor-pointer transition-colors">Problema con un pago o la suscripción</li>
+                                        <li role="option" aria-selected="false" data-valor="Problema con producto" onclick="seleccionarReporteTipo('Problema con producto', 'Problema con un producto o mi perfil público')" class="px-3.5 py-2.5 text-sm text-slate-700 hover:bg-yellow-50 active:bg-yellow-100 cursor-pointer transition-colors">Problema con un producto o mi perfil público</li>
+                                        <li role="option" aria-selected="false" data-valor="Sugerencia" onclick="seleccionarReporteTipo('Sugerencia', 'Sugerencia o idea')" class="px-3.5 py-2.5 text-sm text-slate-700 hover:bg-yellow-50 active:bg-yellow-100 cursor-pointer transition-colors">Sugerencia o idea</li>
+                                        <li role="option" aria-selected="false" data-valor="Otro" onclick="seleccionarReporteTipo('Otro', 'Otro')" class="px-3.5 py-2.5 text-sm text-slate-700 hover:bg-yellow-50 active:bg-yellow-100 cursor-pointer transition-colors">Otro</li>
+                                    </ul>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-bold text-slate-600 mb-1.5" for="reporte-descripcion">Contanos qué pasó</label>
+                                <textarea id="reporte-descripcion" required rows="4" maxlength="1000" placeholder="Describí el problema con el mayor detalle posible: qué estabas haciendo, qué esperabas que pasara y qué pasó en realidad." class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent resize-none"></textarea>
+                            </div>
+
+
+                            <div>
+                                <label class="block text-xs font-bold text-slate-600 mb-1.5" for="reporte-contacto">Contacto</label>
+                                <input type="text" id="reporte-contacto" placeholder="Tú número" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent">
+                                <p class="text-[11px] text-slate-400 mt-1.5">Dejanos tu contacto para informarte de la corrección o para preguntarte mas detalles del error.</p>
+                            </div>
+
+                            <button
+                                type="submit"
+                                id="reporte-btn-enviar"
+                                class="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-obsidian text-white px-6 py-3 rounded-xl font-bold text-sm uppercase tracking-wide hover:bg-yellow-400 hover:text-black transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
+                            >
+                                Enviar reporte
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- CANALES DE CONTACTO -->
+                    <div class="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 border border-slate-200/80 shadow-sm">
+                        <div class="flex items-center gap-2.5 sm:gap-3 mb-4 sm:mb-6">
+                            <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-emerald-400/15 text-emerald-700 flex items-center justify-center flex-shrink-0">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0zM7 20l-2.5 1.5.7-2.8"/></svg>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <h2 class="font-extrabold text-slate-900 text-sm sm:text-base">Canales de contacto</h2>
+                                <p class="text-xs text-slate-400">¿Tenés un problema o una duda? Escribinos</p>
+                            </div>
+                        </div>
+
+                        <!-- Botones grandes, apilados en mobile y en fila en desktop.
+                             Números de WhatsApp reales (formato wa.me: 549 + característica
+                             + número, sin "+" ni espacios): soporte 5493644539325,
+                             Dropea 5493735533008. -->
+                        <div class="grid grid-cols-1 md:grid-cols-[repeat(auto-fit,minmax(min(100%,19rem),1fr))] gap-3 sm:gap-4">
+                            <a href="https://wa.me/5493644539325" target="_blank" rel="noopener"
+                                class="flex items-center gap-3 sm:gap-4 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-2xl p-4 sm:p-5 transition-all active:scale-[0.97] group">
+                                <div class="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-emerald-500 text-white flex items-center justify-center flex-shrink-0 shadow-md shadow-emerald-500/20">
+                                    <svg class="w-5 h-5 sm:w-6 sm:h-6" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.29.173-1.414-.074-.124-.272-.198-.57-.347z"/><path d="M12.001 2C6.478 2 2 6.478 2 12c0 1.876.52 3.63 1.42 5.13L2 22l4.994-1.396A9.947 9.947 0 0012 22c5.523 0 10-4.478 10-10S17.523 2 12 2zm0 18.13a8.1 8.1 0 01-4.135-1.13l-.297-.176-3.06.856.822-2.997-.194-.31A8.113 8.113 0 013.87 12c0-4.487 3.643-8.13 8.13-8.13 4.487 0 8.13 3.643 8.13 8.13 0 4.487-3.643 8.13-8.13 8.13z"/></svg>
+                                </div>
+                                <div class="min-w-0 flex-1">
+                                    <p class="font-extrabold text-slate-900 text-sm break-words">Contacto soporte</p>
+                                    <p class="text-xs text-slate-500 mt-0.5 break-words">Consultas generales o problemas técnicos</p>
+                                </div>
+                                <svg class="w-4 h-4 text-emerald-600 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/></svg>
+                            </a>
+
+                            <a href="https://wa.me/5493735533008" target="_blank" rel="noopener"
+                                class="flex items-center gap-3 sm:gap-4 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-2xl p-4 sm:p-5 transition-all active:scale-[0.97] group">
+                                <div class="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-emerald-500 text-white flex items-center justify-center flex-shrink-0 shadow-md shadow-emerald-500/20">
+                                    <svg class="w-5 h-5 sm:w-6 sm:h-6" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.29.173-1.414-.074-.124-.272-.198-.57-.347z"/><path d="M12.001 2C6.478 2 2 6.478 2 12c0 1.876.52 3.63 1.42 5.13L2 22l4.994-1.396A9.947 9.947 0 0012 22c5.523 0 10-4.478 10-10S17.523 2 12 2zm0 18.13a8.1 8.1 0 01-4.135-1.13l-.297-.176-3.06.856.822-2.997-.194-.31A8.113 8.113 0 013.87 12c0-4.487 3.643-8.13 8.13-8.13 4.487 0 8.13 3.643 8.13 8.13 0 4.487-3.643 8.13-8.13 8.13z"/></svg>
+                                </div>
+                                <div class="min-w-0 flex-1">
+                                    <p class="font-extrabold text-slate-900 text-sm break-words">Dropea</p>
+                                    <p class="text-xs text-slate-500 mt-0.5 break-words">Sugerencias, ideas o contacto con el equipo de Dropea</p>
+                                </div>
+                                <svg class="w-4 h-4 text-emerald-600 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/></svg>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECCIÓN: PAGOS -->
+            <section id="section-pagos" class="hidden animate-fade-in">
+                <header class="flex flex-col sm:flex-row sm:items-end justify-between gap-4 sm:gap-6 mb-6 md:mb-10 pb-6 border-b border-slate-200/80">
+                    <div>
+                        <h1 class="text-2xl md:text-4xl font-extrabold tracking-tight text-slate-900">
+                            Pagos
+                        </h1>
+                        <p class="text-slate-500 text-sm md:text-base mt-2">
+                            Gestioná tu suscripción mensual en Dropea.
+                        </p>
+                    </div>
+                </header>
+
+                <div class="max-w-3xl space-y-4 sm:space-y-6">
+
+                    <!-- SUSCRIPCIÓN -->
+                    <div id="tarjeta-suscripcion" class="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 border border-slate-200/80 shadow-sm">
+                        <div class="flex items-center gap-2.5 sm:gap-3 mb-4 sm:mb-6">
+                            <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-yellow-400/15 text-yellow-700 flex items-center justify-center flex-shrink-0">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <h2 class="font-extrabold text-slate-900 text-sm sm:text-base">Suscripción</h2>
+                                <p class="text-xs text-slate-400">Tu plan mensual en Dropea</p>
+                            </div>
+                        </div>
+
+                        <div id="susc-cargando" class="text-sm text-slate-400">Cargando estado...</div>
+
+                        <div id="susc-contenido" class="hidden space-y-4">
+                            <div class="flex items-center justify-between gap-3 flex-wrap">
+                                <div>
+                                    <p id="susc-estado-label" class="font-bold text-sm text-slate-900"></p>
+                                    <p id="susc-vencimiento" class="text-xs text-slate-400 mt-1"></p>
+                                </div>
+                                <span id="susc-badge" class="px-3 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wide"></span>
+                            </div>
+
+                            <div class="w-full sm:w-auto">
+                                <button
+                                    id="susc-btn-pagar"
+                                    type="button"
+                                    onclick="abrirModalPagoSuscripcion()"
+                                    class="hidden w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-yellow-400 text-black px-5 py-3 rounded-xl font-bold text-sm uppercase tracking-wide hover:bg-obsidian hover:text-white transition-all active:scale-95 disabled:opacity-40 disabled:grayscale disabled:cursor-not-allowed disabled:pointer-events-none disabled:hover:bg-yellow-400 disabled:hover:text-black disabled:active:scale-100"
+                                >
+                                    Pagar suscripción
+                                </button>
+                                <p id="susc-btn-pagar-hint" class="hidden text-[11px] text-slate-400 mt-2 max-w-[220px] sm:max-w-xs leading-relaxed"></p>
+                            </div>
+                        </div>
+
+                        <!-- TRANSFERENCIA BANCARIA -->
+                        <div class="mt-5 sm:mt-6 pt-5 sm:pt-6 border-t border-slate-100">
+                            <p class="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-3">O pagá por transferencia</p>
+
+                            <!-- PRECIO SUSCRIPCIÓN (informativo) -->
+                            <!-- TODO: actualizar este monto a mano cuando cambie el precio (acá y en Cloudflare) -->
+                            <div class="flex items-center justify-between gap-3 bg-yellow-50 border border-yellow-200 rounded-xl sm:rounded-2xl p-3.5 mb-2.5">
+                                <div class="min-w-0">
+                                    <p class="text-[10px] font-bold uppercase tracking-wider text-yellow-700">Monto a transferir</p>
+                                    <p id="susc-monto-transferencia" class="font-mono font-bold text-xs sm:text-sm text-slate-900">$20.000</p>
+                                </div>
+                            </div>
+
+                            <div class="space-y-2.5">
+                                <div class="flex items-center justify-between gap-3 bg-slate-50 border border-slate-200 rounded-xl sm:rounded-2xl p-3.5">
+                                    <div class="min-w-0">
+                                        <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">CBU</p>
+                                        <p class="font-mono font-bold text-xs sm:text-sm text-slate-900 truncate">0000003100056680908806</p>
+                                    </div>
+                                    <button type="button" onclick="copiarTexto('0000003100056680908806', this)" class="flex-shrink-0 inline-flex items-center gap-1.5 bg-white border border-slate-300 text-slate-700 px-3 py-2 rounded-lg text-xs font-bold hover:bg-obsidian hover:text-white hover:border-obsidian transition-all active:scale-95">
+                                        <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                                        <span class="hidden sm:inline">Copiar</span>
+                                    </button>
+                                </div>
+
+                                <div class="flex items-center justify-between gap-3 bg-slate-50 border border-slate-200 rounded-xl sm:rounded-2xl p-3.5">
+                                    <div class="min-w-0">
+                                        <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Alias</p>
+                                        <p class="font-mono font-bold text-xs sm:text-sm text-slate-900 truncate"></p>
+                                    </div>
+                                    <button type="button" onclick="copiarTexto('COMUNIDADONLINE', this)" class="flex-shrink-0 inline-flex items-center gap-1.5 bg-white border border-slate-300 text-slate-700 px-3 py-2 rounded-lg text-xs font-bold hover:bg-obsidian hover:text-white hover:border-obsidian transition-all active:scale-95">
+                                        <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                                        <span class="hidden sm:inline">Copiar</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <p class="text-xs text-slate-400 mt-3 leading-relaxed">
+                                Una vez que transferís, tocá <strong class="text-slate-600">"Informar pago"</strong> y mandanos el comprobante para activar tu cuenta.
+                            </p>
+
+                            <!-- Usa el número de WhatsApp de Dropea (549 +
+                                 característica + número, sin "+" ni espacios): 5493735533008
+                                 (ver informarPagoWhatsapp en dashboard.js). -->
+                            <button type="button" onclick="informarPagoWhatsapp()"
+                                class="w-full mt-3 flex items-center gap-3 sm:gap-4 bg-obsidian hover:bg-slate-800 rounded-2xl p-4 sm:p-5 transition-all active:scale-[0.97] group text-left">
+                                <div class="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-yellow-400 text-black flex items-center justify-center flex-shrink-0 shadow-md shadow-yellow-400/20">
+                                    <svg class="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                                </div>
+                                <div class="min-w-0 flex-1">
+                                    <p class="font-extrabold text-white text-sm">Informar pago</p>
+                                    <p class="text-xs text-slate-300 mt-0.5">Mandanos el comprobante de tu transferencia para activar tu cuenta</p>
+                                </div>
+                                <svg class="w-4 h-4 text-yellow-400 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECCIÓN: ANUNCIOS -->
+            <section id="section-anuncios" class="hidden animate-fade-in">
+                <header class="flex flex-col sm:flex-row sm:items-end justify-between gap-4 sm:gap-6 mb-6 md:mb-10 pb-6 border-b border-slate-200/80">
+                    <div>
+                        <h1 class="text-2xl md:text-4xl font-extrabold tracking-tight text-slate-900">
+                            Anuncios
+                        </h1>
+                        <p class="text-slate-500 text-sm md:text-base mt-2">
+                            Un aviso corto que aparece arriba de todo en tu perfil público. Ideal para novedades de último momento.
+                        </p>
+                    </div>
+                </header>
+
+                <div class="max-w-3xl space-y-4 sm:space-y-6">
+                    <div class="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 border border-slate-200/80 shadow-sm">
+                        <div class="flex items-center gap-2.5 sm:gap-3 mb-4 sm:mb-6">
+                            <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-yellow-400/15 text-yellow-700 flex items-center justify-center flex-shrink-0">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"/></svg>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <h2 class="font-extrabold text-slate-900 text-sm sm:text-base">Barra de anuncio temporal</h2>
+                                <p class="text-xs text-slate-400">Se muestra arriba de tu perfil hasta que lo cambies o lo borres</p>
+                            </div>
+                        </div>
+
+                        <div class="space-y-2">
+                            <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
+                                Texto del anuncio
+                            </label>
+                            <textarea id="p-anuncio" rows="3" maxlength="120" data-autogrow oninput="actualizarContadorAnuncio()"
+                                placeholder='Ej: "Hoy hacemos envíos gratis en la zona", "Estamos de vacaciones hasta el lunes", "Tomando pedidos para el fin de semana"'
+                                class="ta-auto ta-anuncio w-full bg-slate-50/50 border border-slate-200 rounded-xl sm:rounded-2xl p-3.5 sm:p-4 text-slate-900 font-semibold text-base leading-relaxed focus:bg-white focus:border-obsidian focus:ring-4 focus:ring-yellow-400/20 outline-none transition-all resize-none"></textarea>
+                            <p class="text-xs text-slate-400 text-right"><span id="contador-anuncio">0</span>/120</p>
+                        </div>
+
+                        <!-- PREVIEW -->
+                        <div class="mt-2">
+                            <p class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Vista previa</p>
+                            <div id="preview-anuncio-wrap" class="hidden items-center gap-2.5 bg-yellow-400 text-black px-4 py-3 rounded-xl sm:rounded-2xl font-bold text-xs sm:text-sm">
+                                <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"/></svg>
+                                <span id="preview-anuncio-texto" class="truncate"></span>
+                            </div>
+                            <div id="preview-anuncio-vacio" class="flex items-center gap-2.5 bg-slate-50 text-slate-400 px-4 py-3 rounded-xl sm:rounded-2xl font-semibold text-xs sm:text-sm border border-dashed border-slate-200">
+                                Sin anuncio activo — tu perfil se ve normal, sin barra arriba.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col-reverse sm:flex-row justify-end gap-3 pb-2">
+                        <button onclick="quitarAnuncio()" id="btn-quitar-anuncio" class="w-full sm:w-auto bg-white text-slate-500 border border-slate-200 px-6 sm:px-8 py-3 sm:py-4 rounded-xl sm:rounded-2xl font-bold uppercase text-xs tracking-widest hover:bg-slate-50 hover:text-red-500 hover:border-red-200 transition-all duration-200 active:scale-95">
+                            Quitar anuncio
+                        </button>
+                        <button onclick="guardarAnuncio()" id="btn-guardar-anuncio" class="w-full sm:w-auto bg-obsidian text-white px-6 sm:px-10 py-3 sm:py-4 rounded-xl sm:rounded-2xl font-bold uppercase text-xs tracking-widest hover:bg-yellow-400 hover:text-black transition-all duration-200 shadow-xl shadow-slate-900/10 active:scale-95">
+                            Guardar anuncio
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECCIÓN: CARTEL QR -->
+            <section id="section-qr" class="hidden animate-fade-in">
+                <header class="flex flex-col sm:flex-row sm:items-end justify-between gap-3 sm:gap-6 mb-5 md:mb-8 pb-5 border-b border-slate-200/80">
+                    <div>
+                        <h1 class="text-2xl md:text-4xl font-extrabold tracking-tight text-slate-900">
+                            Compartir tu perfil
+                        </h1>
+                        <p class="text-slate-500 text-sm md:text-base mt-2">
+                            Pasá el link por WhatsApp o redes, o descargá un cartel con QR para tu local.
+                        </p>
+                    </div>
+                </header>
+
+                <!-- Mismo orden en mobile y desktop: 1) formato  2) vista previa  3) color / tipografía / guardar -->
+                <div class="max-w-lg mx-auto space-y-4">
+
+                    <!-- LINK DEL PERFIL -->
+                    <div class="bg-white rounded-2xl p-3.5 sm:p-5 border border-slate-200/80 shadow-sm">
+                        <p class="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-2.5">Link de tu perfil</p>
+                        <p id="share-link-texto" class="font-mono text-xs sm:text-sm font-bold text-slate-900 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-3 truncate"></p>
+                        <div class="grid grid-cols-2 gap-2 sm:gap-2.5 mt-3">
+                            <button type="button" onclick="copiarLinkPerfil()" class="flex items-center justify-center gap-2 bg-yellow-400 text-black px-4 py-3 rounded-xl font-black text-[11px] sm:text-xs uppercase tracking-wider hover:bg-yellow-300 transition-all">Copiar link</button>
+                            <a id="link-ir-a-mi-perfil-qr" href="index.html" target="_blank" rel="noopener" class="flex items-center justify-center gap-2 bg-slate-100 text-slate-700 px-4 py-3 rounded-xl font-black text-[11px] sm:text-xs uppercase tracking-wider hover:bg-slate-200 transition-all">Ver perfil</a>
+                        </div>
+                    </div>
+
+                    <p class="text-[11px] font-black uppercase tracking-widest text-slate-400 pt-2 px-1">Cartel QR</p>
+
+                    <!-- 1) FORMATO -->
+                    <div class="bg-white rounded-2xl p-3.5 sm:p-5 border border-slate-200/80 shadow-sm">
+                        <p class="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-2.5">Formato</p>
+                        <div class="grid grid-cols-3 gap-2 sm:gap-2.5">
+                            <button type="button" id="qr-tile-poster" onclick="renderFormatoQR('poster')" class="qr-tile" title="Cartel de Mostrador · A5 vertical, para portahojas o stand">
+                                <svg class="qr-tile-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="6" y="2" width="12" height="16" rx="1.5" stroke-width="2"/><path stroke-linecap="round" stroke-width="2" d="M9 22h6M12 18v4"/></svg>
+                                <div class="qr-tile-label">Mostrador</div>
+                                <div class="qr-tile-sub">A5 vertical</div>
+                            </button>
+                            <button type="button" id="qr-tile-sticker" onclick="renderFormatoQR('sticker')" class="qr-tile" title="Sticker / Tarjeta · Cuadrado, para vidriera, bolsas o pedidos">
+                                <svg class="qr-tile-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="4" stroke-width="2"/><circle cx="9" cy="9" r="1" fill="currentColor" stroke="none"/></svg>
+                                <div class="qr-tile-label">Sticker</div>
+                                <div class="qr-tile-sub">Cuadrado</div>
+                            </button>
+                            <button type="button" id="qr-tile-story" onclick="renderFormatoQR('story')" class="qr-tile" title="Historia de Instagram · Vertical, para Stories o WhatsApp">
+                                <svg class="qr-tile-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="7" y="2" width="10" height="20" rx="2" stroke-width="2"/><path stroke-linecap="round" stroke-width="2" d="M11 19h2"/></svg>
+                                <div class="qr-tile-label">Historia</div>
+                                <div class="qr-tile-sub">Instagram</div>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 2) VISTA PREVIA -->
+                    <div id="qr-preview-stage" class="flex items-center justify-center bg-slate-50 rounded-2xl border border-slate-200 p-5 sm:p-7 h-[420px] sm:h-[480px]"></div>
+
+                    <!-- 3) COLOR / TIPOGRAFÍA / GUARDAR — pills que abren un panel
+                         anclado arriba del botón (igual que los filtros de index.html) -->
+                    <div class="flex flex-wrap items-center gap-2.5">
+
+                        <!-- Color -->
+                        <div class="relative">
+                            <button type="button" id="qr-btn-color" onclick="toggleQRPanel('color')" class="qr-trigger-pill">
+                                <span id="qr-trigger-color-dot" class="qr-trigger-swatch"></span>
+                                Color
+                                <svg id="chevron-qr-color" class="qr-trigger-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M19 9l-7 7-7-7"/></svg>
+                            </button>
+                            <div id="panel-qr-color" class="hidden qr-dropdown-panel">
+                                <div id="qr-paleta-row" class="qr-paleta-grid"></div>
+                            </div>
+                        </div>
+
+                        <!-- Tipografía -->
+                        <div class="relative">
+                            <button type="button" id="qr-btn-fuente" onclick="toggleQRPanel('fuente')" class="qr-trigger-pill">
+                                <span id="qr-trigger-fuente-aa" class="qr-trigger-aa">Aa</span>
+                                Tipografía
+                                <svg id="chevron-qr-fuente" class="qr-trigger-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M19 9l-7 7-7-7"/></svg>
+                            </button>
+                            <div id="panel-qr-fuente" class="hidden qr-dropdown-panel">
+                                <div id="qr-fuente-lista" class="flex flex-col gap-1"></div>
+                            </div>
+                        </div>
+
+                        <!-- Guardar -->
+                        <button type="button" id="btn-descargar-qr" onclick="descargarTarjetaQR()" class="qr-btn-guardar ml-auto">
+                            <svg class="qr-btn-guardar-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>
+                            <span id="qr-btn-guardar-label">Guardar</span>
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- BOTÓN VOLVER ARRIBA (solo visible en la sección Mis productos).
+         Va fuera de <section> a propósito: .animate-fade-in deja un transform
+         aplicado y eso rompería el position:fixed. -->
+    <button type="button" id="btn-scroll-top" class="btn-scroll-top" onclick="volverArribaProductos()" aria-label="Volver arriba">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 15l-6-6-6 6"/></svg>
+    </button>
+
+    <!-- MODAL PRODUCTO -->
+    <div id="modal-form">
+        <form id="form-producto" class="modal modal-lg">
+
+            <!-- Encabezado fijo -->
+            <div class="modal-header">
+                <div class="modal-header-left">
+                    <h2 id="titulo-modal" class="modal-title">Nuevo producto</h2>
+                    <span class="modal-subtitle">Completá los datos y especificaciones de venta</span>
+                </div>
+                <button type="button" onclick="cerrarFormulario()" class="modal-close" aria-label="Cerrar">
+                    <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+
+            <!-- Cuerpo con scroll interno (único que scrollea) -->
+            <div id="cuerpo-modal-producto" class="modal-body">
+
+                <!-- SECCIÓN: Información principal -->
+                <div class="form-section">
+                    <div class="form-section-title">Información principal</div>
+                    <div class="form-grid form-grid-2">
+                        <div class="form-group span-2">
+                            <label>Nombre del producto <span class="required">*</span></label>
+                            <input type="text" id="nombre" required placeholder="Nombre claro y fácil de reconocer">
+                        </div>
+                        <div class="form-subgrid span-2">
+                            <div class="form-group">
+                                <label>Precio ($) <span class="required">*</span></label>
+                                <input type="text" inputmode="decimal" id="precio" required placeholder="0"
+                                    oninput="sanitizarInputPrecio(this); actualizarTodosLosTotalesVariantes()" onblur="formatearInputPrecio(this)">
+                            </div>
+                            <div class="form-group">
+                                <label>Precio anterior ($)</label>
+                                <input type="text" inputmode="decimal" id="precio_anterior" placeholder="Opcional"
+                                    oninput="sanitizarInputPrecio(this)" onblur="formatearInputPrecio(this)">
+                            </div>
+                            <p class="field-hint">Precio anterior es opcional. Si lo completás (y es mayor al precio actual), en la tienda aparece tachado con un cartel de % OFF.</p>
+                        </div>
+                        <div class="form-group span-2">
+                            <label for="categoria-tienda">Categoría</label>
+                            <select id="categoria-tienda">
+                                <option value="">Sin categoría</option>
+                            </select>
+                            <p id="hint-categoria-tienda" class="field-hint">Opcional. Es el menú propio de tu tienda, con las secciones que vos elijas. Se arma en «Mis categorías».</p>
+                        </div>
+                        <div class="form-group span-2">
+                            <label>Descripción corta</label>
+                            <textarea id="descripcion" rows="5" data-autogrow class="ta-auto" placeholder="Contale al comprador qué es, para qué sirve o qué lo hace especial"></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SECCIÓN: Imagen -->
+                <div class="form-section">
+                    <div class="form-section-title">Imagen</div>
+                    <div class="form-group">
+                        <label class="img-upload-area" id="imagen-producto-area" for="imagen-producto-input">
+                            <div id="imagen-producto-preview-placeholder">
+                                <svg width="30" height="30" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                                <strong>Hacé clic para subir</strong>
+                                <p>JPG, PNG o WebP · máx 3MB</p>
+                            </div>
+                            <img id="imagen-producto-preview" class="img-preview hidden" src="" alt="Vista previa">
+                            <div id="imagen-producto-spinner" class="img-uploading hidden">
+                                <div class="spinner-mini"></div>
+                                <span>Subiendo imagen…</span>
+                            </div>
+                        </label>
+                        <input type="file" id="imagen-producto-input" class="img-upload-input" accept="image/jpeg,image/jpg,image/png,image/webp" onchange="manejarSeleccionImagenProducto(event)">
+                        <div class="img-actions hidden" id="imagen-producto-actions">
+                            <button type="button" class="btn btn-ghost btn-sm" onclick="event.preventDefault(); document.getElementById('imagen-producto-input').click()">Cambiar</button>
+                            <button type="button" class="btn btn-danger btn-sm" onclick="quitarImagenProducto()">Quitar</button>
+                        </div>
+                        <input type="hidden" id="imagen">
+                    </div>
+                </div>
+
+                <!-- SECCIÓN: Etiqueta y publicación -->
+                <div class="form-section">
+                    <div class="form-section-title">Etiqueta y publicación</div>
+                    <div class="form-grid">
+                        <div class="form-group toggle-row">
+                            <label style="margin-bottom: 0;">Con stock</label>
+                            <label class="toggle">
+                                <input type="checkbox" id="activo" checked>
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                        <div class="form-group toggle-row">
+                            <label style="margin-bottom: 0;">Marcar como nuevo</label>
+                            <label class="toggle">
+                                <input type="checkbox" id="nuevo">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                        <p class="field-hint" id="hint-nuevo" style="margin-top: -0.4rem;">El cartel "Nuevo" se muestra en la tienda por 5 días desde que lo activás; después desaparece solo.</p>
+                        <div class="form-group" id="medios-pago-producto-wrap">
+                            <label>Medios de pago aceptados</label>
+                            <p class="field-hint">Opcional. Si no marcás ninguno, se muestran todos los medios configurados en tu perfil.</p>
+                            <div id="medios-pago-producto" class="tag-picker"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SECCIÓN VARIANTES -->
+                <div class="form-section">
+                    <div class="form-section-title-row">
+                        <div class="form-section-title" style="margin-bottom: 0;">Variantes</div>
+                    </div>
+                    <div class="form-section-title-row" style="margin-top: -0.55rem; margin-bottom: 0.6rem;">
+                        <p class="field-hint">Opcional. Sirve para ofrecer distintas opciones del mismo producto, cada una con su propio precio y stock.</p>
+                        <button type="button" onclick="agregarFilaVariante()" class="btn btn-ghost btn-sm">+ Agregar</button>
+                    </div>
+                    <div id="lista-variantes"></div>
+                    <div id="aviso-sin-stock" class="aviso-sin-stock-box hidden">
+                        <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="var(--mp-red)" stroke-width="2" style="flex-shrink:0; margin-top:1px;"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m0 3.75h.008M4.93 19h14.14c1.5 0 2.44-1.63 1.68-2.93L13.68 4.35c-.75-1.28-2.6-1.28-3.35 0L3.25 16.07C2.49 17.37 3.43 19 4.93 19z"/></svg>
+                        <p style="font-size: 0.72rem; color: var(--mp-red); font-weight: 600; line-height: 1.4; margin: 0;">Todas las variantes están sin stock: al guardar, el producto se va a ocultar automáticamente de la tienda.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pie fijo -->
+            <div class="modal-footer">
+                <button type="button" onclick="cerrarFormulario()" class="btn btn-ghost">Cancelar</button>
+                <button type="submit" id="btn-guardar-producto" class="btn btn-primary">Guardar</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- MODAL TÉRMINOS Y CONDICIONES -->
+    <div id="modal-instructivo" onclick="if (event.target === this) cerrarInstructivo()" class="modal-overlay fixed inset-0 z-[60] hidden flex items-center justify-center p-0 sm:p-6">
+        <div class="absolute inset-0 bg-obsidian/85"></div>
+
+        <div class="modal-panel bg-white w-full max-w-3xl h-[100dvh] sm:h-[85vh] rounded-none sm:rounded-3xl relative z-10 shadow-2xl border border-white/20 flex flex-col overflow-hidden">
+            <div class="px-5 sm:px-8 py-4 sm:py-5 border-b border-slate-100 flex items-center justify-between flex-shrink-0">
+                <div>
+                    <h2 class="text-lg sm:text-xl font-extrabold text-slate-900 tracking-tight">Instructivo de uso</h2>
+                    <p class="text-xs text-slate-400 mt-0.5">Guía para configurar tu tienda y cargar productos</p>
+                </div>
+                <button type="button" onclick="cerrarInstructivo()" class="modal-close" aria-label="Cerrar">✕</button>
+            </div>
+
+            <div class="flex-1 min-h-0 bg-slate-100 relative">
+                <iframe id="iframe-instructivo" src="" class="w-full h-full border-0" style="-webkit-overflow-scrolling: touch;" allow="autoplay" loading="lazy"></iframe>
+            </div>
+
+            <div class="px-5 sm:px-8 py-3 border-t border-slate-100 flex-shrink-0 flex items-center justify-between gap-3">
+                <p class="text-[11px] text-slate-400">¿No se ve bien? Podés abrirlo en una pestaña nueva.</p>
+                <a id="link-instructivo-nueva-pestana" href="#" target="_blank" rel="noopener" class="text-xs font-bold text-slate-600 hover:text-obsidian underline underline-offset-2 flex-shrink-0">Abrir en pestaña nueva</a>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-terminos" class="modal-overlay fixed inset-0 z-[60] hidden flex items-center justify-center p-4 sm:p-6">
+        <div class="absolute inset-0 bg-obsidian/85"></div>
+
+        <div class="modal-panel bg-white w-full max-w-lg rounded-3xl relative z-10 shadow-2xl border border-white/20 flex flex-col max-h-[85vh]">
+            <div class="p-6 sm:p-8 pb-4 border-b border-slate-100 flex-shrink-0">
+                <h2 class="text-xl font-extrabold text-slate-900 uppercase tracking-tight">Términos y Condiciones</h2>
+                <p class="text-xs text-slate-400 mt-0.5">Leé y elegí una opción para poder seguir usando tu panel</p>
+            </div>
+
+            <div class="px-6 sm:px-8 py-4 overflow-y-auto text-sm text-slate-600 leading-relaxed space-y-4">
+                <div>
+                    <p class="font-bold text-slate-800">Términos y Condiciones de Uso — Dropea</p>
+                    <p class="text-xs text-slate-400 mt-0.5">Última actualización: 31 de agosto de 2026</p>
+                </div>
+                <p>
+                    Bienvenido/a a Dropea, una plataforma destinada a brindar visibilidad y facilitar la conexión entre emprendedores, comercios y potenciales clientes. El acceso y uso de Dropea implica la aceptación de los presentes Términos y Condiciones. Si el usuario no está de acuerdo con alguno de ellos, deberá abstenerse de utilizar la plataforma.
+                </p>
+                <div>
+                    <p class="font-bold text-slate-800 mb-1">1. Uso de la plataforma</p>
+                    <p>
+                        Dropea tiene como finalidad permitir que los emprendedores puedan mostrar sus productos, servicios y emprendimientos dentro de la plataforma. El usuario se compromete a utilizar la plataforma de manera responsable, respetuosa y conforme a la legislación vigente, estos Términos y Condiciones y las indicaciones proporcionadas por Dropea. Queda prohibido utilizar la plataforma para actividades ilícitas, fraudulentas, engañosas, maliciosas o que puedan perjudicar a otros usuarios, clientes o a la propia plataforma.
+                    </p>
+                </div>
+                <div>
+                    <p class="font-bold text-slate-800 mb-1">2. Publicación de productos</p>
+                    <p>
+                        Los usuarios únicamente podrán publicar productos que sean comercializados directamente por ellos o por el emprendimiento que representan. No está permitido publicar productos pertenecientes a terceros, productos de otros emprendimientos o publicaciones que puedan generar confusión respecto de quién es el verdadero vendedor. El usuario será responsable de verificar que cuenta con autorización para comercializar y publicar cualquier producto que incorpore a su perfil.
+                    </p>
+                </div>
+                <div>
+                    <p class="font-bold text-slate-800 mb-1">3. Información de los productos</p>
+                    <p>
+                        El usuario es responsable de que la información proporcionada en sus publicaciones sea verdadera, clara y actualizada. Esto incluye, entre otros: nombre y descripción del producto, imágenes utilizadas, precio informado, disponibilidad, características del producto, información de contacto, condiciones de venta o entrega. Dropea podrá solicitar la modificación, corrección o eliminación de publicaciones que contengan información falsa, engañosa, incompleta o desactualizada.
+                    </p>
+                </div>
+                <div>
+                    <p class="font-bold text-slate-800 mb-1">4. Imágenes y contenido publicado</p>
+                    <p>
+                        El usuario declara que posee los derechos, permisos o autorizaciones necesarios para utilizar las imágenes, textos, logotipos y demás contenido que publique. No se deberán utilizar imágenes, marcas, fotografías, diseños o contenidos pertenecientes a terceros cuando su utilización no esté autorizada. El usuario será responsable por cualquier reclamo relacionado con el contenido que haya publicado.
+                    </p>
+                </div>
+                <div>
+                    <p class="font-bold text-slate-800 mb-1">5. Responsabilidad sobre las ventas</p>
+                    <p>
+                        Dropea funciona como una plataforma de exposición y conexión entre emprendedores y potenciales clientes. La plataforma no participa necesariamente en las operaciones comerciales realizadas entre el vendedor y el comprador. Por lo tanto, Dropea no será responsable por: incumplimientos entre compradores y vendedores, productos defectuosos o diferentes a los ofrecidos, retrasos en entregas, cancelaciones de pedidos, falta de pago, reclamos comerciales, garantías de productos, daños ocasionados por los productos comercializados, ni acuerdos realizados fuera de la plataforma. La responsabilidad derivada de la venta de un producto corresponderá al vendedor que lo haya publicado y comercializado.
+                    </p>
+                </div>
+                <div>
+                    <p class="font-bold text-slate-800 mb-1">6. Seguridad de la cuenta</p>
+                    <p>
+                        Cada usuario es responsable de mantener la confidencialidad y seguridad de sus credenciales de acceso. El usuario deberá informar a Dropea ante cualquier sospecha de acceso no autorizado a su cuenta. Dropea no se responsabiliza por la pérdida, robo, filtración o utilización indebida de las credenciales del usuario cuando dicha situación sea consecuencia de acciones u omisiones del propio usuario o de terceros ajenos a Dropea. Asimismo, Dropea no será responsable por modificaciones, publicaciones, eliminación de productos u otras acciones realizadas por terceros que hayan obtenido acceso a una cuenta de usuario.
+                    </p>
+                </div>
+                <div>
+                    <p class="font-bold text-slate-800 mb-1">7. Uso indebido de cuentas</p>
+                    <p>
+                        Está prohibido: compartir deliberadamente las credenciales de acceso con personas no autorizadas, intentar acceder a cuentas de otros usuarios, suplantar la identidad de otra persona o emprendimiento, utilizar información falsa para crear una cuenta, crear cuentas con el objetivo de evadir sanciones o bloqueos, intentar vulnerar, alterar o interferir con el funcionamiento de la plataforma, o utilizar sistemas automatizados para realizar acciones que puedan afectar el funcionamiento del servicio.
+                    </p>
+                </div>
+                <div>
+                    <p class="font-bold text-slate-800 mb-1">8. Conductas prohibidas</p>
+                    <p>
+                        No está permitido utilizar Dropea para publicar, promocionar o comercializar: productos o servicios ilegales, productos falsificados o de procedencia ilícita, contenido engañoso o fraudulento, contenido que infrinja derechos de terceros, publicaciones destinadas a estafar o perjudicar a otros usuarios, contenido ofensivo, discriminatorio, amenazante o destinado a acosar a otras personas, ni productos cuya comercialización esté prohibida por la legislación vigente. Dropea podrá retirar cualquier contenido que considere contrario a estos Términos y Condiciones o que pueda representar un riesgo para la comunidad.
+                    </p>
+                </div>
+                <div>
+                    <p class="font-bold text-slate-800 mb-1">9. Moderación de contenido</p>
+                    <p>
+                        Dropea podrá revisar, moderar, ocultar o eliminar publicaciones y contenido que incumplan estos Términos y Condiciones. La plataforma también podrá solicitar al usuario información adicional para verificar la legitimidad de un emprendimiento, producto o publicación. La moderación podrá realizarse de manera preventiva cuando exista una sospecha razonable de incumplimiento.
+                    </p>
+                </div>
+                <div>
+                    <p class="font-bold text-slate-800 mb-1">10. Suspensión y eliminación de cuentas</p>
+                    <p>
+                        Cuando un usuario incumpla las normas de Dropea, su perfil podrá ser bloqueado inicialmente. En primera instancia, Dropea podrá comunicarse con el usuario para informarle sobre el incumplimiento y, cuando corresponda, permitirle realizar las correcciones necesarias. Si el incumplimiento se repite, si la conducta resulta especialmente grave o si el usuario continúa infringiendo las normas, Dropea podrá eliminar definitivamente el perfil del usuario de la plataforma, junto con las publicaciones y productos asociados. La eliminación del perfil implicará la pérdida del acceso a la plataforma. En caso de suspensión o eliminación por incumplimiento de estos Términos y Condiciones, el usuario podrá perder el acceso a los beneficios y servicios asociados a su suscripción, aun cuando hubiera abonado previamente el período correspondiente, sin perjuicio de los derechos que pudieran corresponderle conforme a la legislación aplicable.
+                    </p>
+                </div>
+                <div>
+                    <p class="font-bold text-slate-800 mb-1">11. Suscripciones y pagos</p>
+                    <p>
+                        En caso de que Dropea ofrezca planes de suscripción pagos, el usuario deberá abonar el importe correspondiente al plan seleccionado y respetar las condiciones informadas al momento de contratarlo. El pago de una suscripción no otorga al usuario un derecho absoluto a permanecer en la plataforma si incumple estos Términos y Condiciones. Las condiciones de renovación, vencimiento, cancelación y eventuales reembolsos serán informadas según el plan contratado y la legislación aplicable.
+                    </p>
+                </div>
+                <div>
+                    <p class="font-bold text-slate-800 mb-1">12. Disponibilidad del servicio</p>
+                    <p>
+                        Dropea procurará mantener la plataforma disponible y funcionando correctamente, pero no garantiza que el servicio se encuentre disponible de manera permanente e ininterrumpida. Podrán producirse interrupciones debido a: mantenimiento, actualizaciones, fallas técnicas, problemas de proveedores externos, problemas de conectividad, ataques informáticos, circunstancias de fuerza mayor u otras situaciones ajenas al control razonable de Dropea.
+                    </p>
+                </div>
+                <div>
+                    <p class="font-bold text-slate-800 mb-1">13. Modificaciones de la plataforma</p>
+                    <p>
+                        Dropea podrá modificar, actualizar, agregar o eliminar funcionalidades, secciones, características o servicios de la plataforma. Estas modificaciones podrán realizarse con el objetivo de mejorar la experiencia de los usuarios, corregir errores, incorporar nuevas funciones o adaptar la plataforma a nuevas necesidades.
+                    </p>
+                </div>
+                <div>
+                    <p class="font-bold text-slate-800 mb-1">14. Modificación de estos Términos</p>
+                    <p>
+                        Dropea podrá actualizar estos Términos y Condiciones cuando resulte necesario. Las modificaciones serán publicadas en la plataforma y, cuando corresponda, se indicará la fecha de actualización. El uso continuado de Dropea después de la publicación de modificaciones implicará la aceptación de los nuevos términos, en la medida permitida por la legislación aplicable.
+                    </p>
+                </div>
+                <div>
+                    <p class="font-bold text-slate-800 mb-1">15. Protección de datos personales</p>
+                    <p>
+                        Los datos proporcionados por los usuarios serán utilizados para el funcionamiento de la plataforma, la gestión de las cuentas, la prestación de los servicios y las finalidades informadas al momento de recopilar dichos datos. Dropea procurará adoptar medidas razonables para proteger la información de los usuarios. El usuario deberá proporcionar información verdadera y actualizada y será responsable de la información que incorpore a su perfil y publicaciones.
+                    </p>
+                </div>
+                <div>
+                    <p class="font-bold text-slate-800 mb-1">16. Responsabilidad del usuario</p>
+                    <p>
+                        El usuario será responsable de todas las acciones realizadas desde su cuenta y del contenido que publique en Dropea, salvo que pueda demostrar que dichas acciones fueron realizadas sin su autorización y que actuó con la diligencia correspondiente para proteger sus credenciales. El usuario se compromete a mantener actualizada la información de su emprendimiento y a responder por las operaciones comerciales que realice con sus clientes.
+                    </p>
+                </div>
+                <div>
+                    <p class="font-bold text-slate-800 mb-1">17. Propiedad intelectual de Dropea</p>
+                    <p>
+                        La estructura, diseño, identidad visual, logotipos, textos, funcionalidades, código, elementos gráficos y demás componentes propios de Dropea pertenecen a sus respectivos titulares y no podrán ser copiados, reproducidos, modificados o utilizados sin autorización cuando corresponda. El contenido publicado por los usuarios continuará perteneciendo a sus respectivos titulares, sin perjuicio de las autorizaciones necesarias para que Dropea pueda mostrarlo y utilizarlo dentro de la plataforma para prestar el servicio.
+                    </p>
+                </div>
+                <div>
+                    <p class="font-bold text-slate-800 mb-1">18. Enlaces y servicios de terceros</p>
+                    <p>
+                        La plataforma podrá contener enlaces, servicios o herramientas proporcionados por terceros. Dropea no controla necesariamente dichos servicios y, por lo tanto, no garantiza su disponibilidad, funcionamiento, seguridad o contenido. El uso de servicios de terceros podrá estar sujeto a sus propios términos y condiciones.
+                    </p>
+                </div>
+                <div>
+                    <p class="font-bold text-slate-800 mb-1">19. Aceptación</p>
+                    <p>
+                        Al registrarse, crear un perfil, publicar productos o utilizar Dropea, el usuario declara haber leído, comprendido y aceptado estos Términos y Condiciones. Si el usuario no acepta estos términos, deberá dejar de utilizar la plataforma y solicitar la baja de su cuenta cuando corresponda.
+                    </p>
+                </div>
+                <div>
+                    <p class="font-bold text-slate-800 mb-1">20. Contacto</p>
+                    <p>
+                        Para consultas, reclamos, reportes de publicaciones o cuestiones relacionadas con estos Términos y Condiciones, el usuario podrá comunicarse con Dropea a través de los canales oficiales de contacto disponibles en la plataforma.
+                    </p>
+                </div>
+                <p class="text-xs text-slate-400 italic pt-2 border-t border-slate-100">
+                    Dropea — Una plataforma para conectar emprendimientos con personas y comunidades.
+                </p>
+            </div>
+
+            <div class="flex gap-3 p-6 sm:p-8 pt-4 border-t border-slate-100 flex-shrink-0">
+                <button type="button" id="btn-rechazar-terminos" onclick="responderTerminos(false)" class="w-1/2 py-3.5 rounded-xl font-bold uppercase text-xs tracking-wider text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">
+                    Rechazar
+                </button>
+                <button type="button" id="btn-aceptar-terminos" onclick="responderTerminos(true)" class="w-1/2 bg-obsidian text-white py-3.5 rounded-xl font-bold uppercase text-xs tracking-wider hover:bg-yellow-400 hover:text-black transition-all shadow-lg shadow-slate-900/10">
+                    Aceptar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: AVISO DE SUSCRIPCIÓN VENCIDA / CUENTA BLOQUEADA
+         Modal común: una sola forma de cerrarlo (la X, o tocando afuera).
+         Sólo avisa una vez al ingresar; el aviso persistente queda a cargo
+         del banner de arriba (#banner-tienda-bloqueada), que es el que
+         refleja el bloqueo real de la tienda en Dropea. -->
+    <div id="modal-vencimiento" onclick="if (event.target === this) cerrarModalVencimiento()" class="modal-overlay fixed inset-0 z-[80] hidden flex items-center justify-center p-4 sm:p-6">
+        <!-- Fondo sólido en vez de backdrop-blur: el blur obliga al navegador a
+             re-samplear todo el dashboard detrás en cada frame mientras el modal
+             anima su entrada, lo que se siente como lag (sobre todo en Android
+             gama media). Mismo criterio que #modal-form, que ya usa un fondo
+             sólido semi-transparente sin blur. -->
+        <div class="absolute inset-0 bg-slate-950/80"></div>
+
+        <div class="modal-panel bg-white w-full max-w-sm rounded-[28px] relative z-10 shadow-[0_30px_80px_-20px_rgba(0,0,0,0.45)] overflow-hidden">
+            <!-- Franja superior de acento -->
+            <div id="modal-vencimiento-franja" class="h-1.5 w-full bg-gradient-to-r from-red-500 via-rose-500 to-red-500"></div>
+
+            <button type="button" onclick="cerrarModalVencimiento()" aria-label="Cerrar" class="absolute top-4 right-4 w-9 h-9 rounded-full flex items-center justify-center bg-slate-100/80 text-slate-400 hover:text-slate-700 hover:bg-slate-200 active:scale-90 transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+
+            <div class="p-7 sm:p-8 pt-9 text-center">
+                <div id="modal-vencimiento-icono" class="w-16 h-16 mx-auto rounded-2xl flex items-center justify-center mb-5 bg-gradient-to-br from-red-50 to-rose-100 text-red-500 shadow-inner">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 10-8 0v4h8z" />
+                    </svg>
+                </div>
+
+                <p class="text-[10px] font-black uppercase tracking-[0.2em] text-red-500 mb-2">Aviso importante</p>
+                <h2 id="modal-vencimiento-titulo" class="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight mb-2.5"></h2>
+                <p id="modal-vencimiento-mensaje" class="text-sm text-slate-500 leading-relaxed mb-7"></p>
+
+                <button
+                    type="button"
+                    id="modal-vencimiento-btn-pagar"
+                    onclick="cerrarModalVencimiento(); abrirModalPagoSuscripcion()"
+                    class="w-full bg-obsidian text-white py-4 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-yellow-400 hover:text-black transition-all duration-200 shadow-lg shadow-slate-900/15 active:scale-95"
+                >
+                    Pagar ahora y reactivar mi tienda
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: DATOS DE CONTACTO OBLIGATORIOS ANTES DE SUBIR PRODUCTOS
+         Se abre desde abrirFormulario() cuando el emprendedor todavia no
+         cargo su WhatsApp en "Mis datos". Sin contacto, los pedidos no
+         le llegarian, asi que no lo dejamos crear productos hasta completarlo. -->
+    <div id="modal-datos-requeridos" onclick="if (event.target === this) cerrarModalDatosRequeridos()" class="modal-overlay fixed inset-0 z-[80] hidden flex items-center justify-center p-4 sm:p-6">
+        <div class="absolute inset-0 bg-slate-950/80"></div>
+
+        <div class="modal-panel bg-white w-full max-w-sm rounded-[28px] relative z-10 shadow-[0_30px_80px_-20px_rgba(0,0,0,0.45)] overflow-hidden">
+            <div class="h-1.5 w-full bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-400"></div>
+
+            <button type="button" onclick="cerrarModalDatosRequeridos()" aria-label="Cerrar" class="absolute top-4 right-4 w-9 h-9 rounded-full flex items-center justify-center bg-slate-100/80 text-slate-400 hover:text-slate-700 hover:bg-slate-200 active:scale-90 transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+
+            <div class="p-7 sm:p-8 pt-9 text-center">
+                <div class="w-16 h-16 mx-auto rounded-2xl flex items-center justify-center mb-5 bg-gradient-to-br from-yellow-50 to-amber-100 text-amber-500 shadow-inner">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                    </svg>
+                </div>
+
+                <p class="text-[10px] font-black uppercase tracking-[0.2em] text-amber-500 mb-2">Antes de continuar</p>
+                <h2 class="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight mb-2.5">Completá tus datos</h2>
+                <p class="text-sm text-slate-500 leading-relaxed mb-7">
+                    Para subir productos es obligatorio cargar tu <strong class="text-slate-700">WhatsApp de contacto</strong> en "Mis datos".
+                    Sin ese dato, los compradores no pueden comunicarse con vos y no te llegarían los pedidos.
+                </p>
+
+                <button type="button" onclick="irACompletarDatos()" class="w-full bg-obsidian text-white py-4 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-yellow-400 hover:text-black transition-all duration-200 shadow-lg shadow-slate-900/15 active:scale-95">
+                    Ir a Mis datos
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: PAGO DE SUSCRIPCIÓN (Card Payment Brick de MercadoPago)
+         Reemplaza la redirección a mercadopago.com: el formulario de
+         tarjeta se monta acá mismo, dentro del panel. No se abre ni la
+         app ni el navegador de MercadoPago en ningún dispositivo. -->
+    <div id="modal-pago-suscripcion" onclick="if (event.target === this) cerrarModalPagoSuscripcion()" class="modal-overlay fixed inset-0 z-[85] hidden flex items-center justify-center p-4 sm:p-6">
+        <!-- Sin backdrop-blur: acá es donde más importa, porque justo cuando
+             se abre este modal también se dispara el fetch de config, se crea
+             la instancia de MercadoPago y se monta el iframe del Brick — todo
+             compitiendo por GPU/CPU al mismo tiempo que el blur intentaría
+             recalcularse en cada frame. -->
+        <div class="absolute inset-0 bg-slate-950/80"></div>
+
+        <div class="modal-panel mps-sheet bg-white w-full max-w-md sm:max-w-lg rounded-[28px] relative z-10 shadow-[0_30px_80px_-20px_rgba(0,0,0,0.45)] overflow-hidden flex flex-col">
+            <div class="mps-handle"></div>
+            <div class="h-1.5 w-full bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-400 flex-shrink-0"></div>
+
+            <button type="button" onclick="cerrarModalPagoSuscripcion()" aria-label="Cerrar" class="absolute top-4 right-4 w-9 h-9 rounded-full flex items-center justify-center bg-slate-100/80 text-slate-400 hover:text-slate-700 hover:bg-slate-200 active:scale-90 transition-all z-10">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+
+            <div class="mps-header flex-shrink-0">
+                <div class="mps-header-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0018.75 4.5H5.25A2.25 2.25 0 003 6.75v10.5A2.25 2.25 0 005.25 19.5z" />
+                    </svg>
+                </div>
+                <div class="min-w-0">
+                    <p class="text-[10px] font-black uppercase tracking-[0.2em] text-yellow-600 mb-0.5">Pago seguro</p>
+                    <h2 class="text-lg sm:text-xl font-extrabold text-slate-900 tracking-tight leading-tight">Pagar suscripción</h2>
+                </div>
+            </div>
+
+            <div class="mps-body flex-1 overflow-y-auto px-6 sm:px-7 pb-4">
+                <div class="mps-monto-card">
+                    <div class="min-w-0">
+                        <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">Vas a pagar</p>
+                        <p id="modal-pago-monto" class="text-xl font-extrabold text-slate-900 leading-none">—</p>
+                        <p class="text-[11px] text-slate-400 mt-1">Con la tarjeta que elijas</p>
+                    </div>
+                    <div class="mps-monto-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0018.75 4.5H5.25A2.25 2.25 0 003 6.75v10.5A2.25 2.25 0 005.25 19.5z" />
+                        </svg>
+                    </div>
+                </div>
+
+                <div id="modal-pago-cargando">
+                    <div class="mps-skeleton-row" style="width:100%"></div>
+                    <div class="mps-skeleton-row" style="width:72%"></div>
+                    <div class="mps-skeleton-row" style="width:88%"></div>
+                    <div class="mps-skeleton-row" style="width:55%"></div>
+                </div>
+
+                <!-- Acá monta el SDK de MercadoPago el formulario de tarjeta -->
+                <div id="brick-tarjeta" class="hidden"></div>
+            </div>
+
+            <div class="mps-trust">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 10-8 0v4h8z"/></svg>
+                <p class="text-[11px] text-slate-400 leading-snug">Tus datos de tarjeta los procesa <span class="font-bold text-slate-500">MercadoPago</span> de forma segura, nunca pasan por nuestros servidores.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: PAGO ACREDITADO / SUSCRIPCIÓN ACTIVADA
+         Reemplaza el mostrarToast(..., 'exito') que tenía un typo (el tipo
+         válido es 'success', no 'exito') y por eso aparecía sin ningún
+         estilo. Un momento como "tu suscripción ya está activa" además
+         merece más presencia que un toast que pasa y se pierde, así que
+         quedó como modal propio, mismo lenguaje visual que
+         #modal-vencimiento pero en verde. -->
+    <div id="modal-pago-exitoso" onclick="if (event.target === this) cerrarModalPagoExitoso()" class="modal-overlay fixed inset-0 z-[90] hidden flex items-center justify-center p-4 sm:p-6">
+        <div class="absolute inset-0 bg-slate-950/80"></div>
+
+        <div class="modal-panel bg-white w-full max-w-sm rounded-[28px] relative z-10 shadow-[0_30px_80px_-20px_rgba(0,0,0,0.45)] overflow-hidden">
+            <div class="h-1.5 w-full bg-gradient-to-r from-emerald-500 via-green-500 to-emerald-500"></div>
+
+            <button type="button" onclick="cerrarModalPagoExitoso()" aria-label="Cerrar" class="absolute top-4 right-4 w-9 h-9 rounded-full flex items-center justify-center bg-slate-100/80 text-slate-400 hover:text-slate-700 hover:bg-slate-200 active:scale-90 transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+
+            <div class="p-7 sm:p-8 pt-9 text-center">
+                <div class="w-16 h-16 mx-auto rounded-2xl flex items-center justify-center mb-5 bg-gradient-to-br from-emerald-50 to-green-100 text-emerald-500 shadow-inner">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+
+                <p class="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-500 mb-2">Pago acreditado</p>
+                <h2 class="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight mb-2.5">¡Tu suscripción ya está activa!</h2>
+                <p id="modal-pago-exitoso-mensaje" class="text-sm text-slate-500 leading-relaxed mb-7">Tu tienda vuelve a mostrarse en Dropea. Gracias por confiar en nosotros.</p>
+
+                <button
+                    type="button"
+                    onclick="cerrarModalPagoExitoso()"
+                    class="w-full bg-obsidian text-white py-4 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-yellow-400 hover:text-black transition-all duration-200 shadow-lg shadow-slate-900/15 active:scale-95"
+                >
+                    Entendido
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SDK de MercadoPago para el Card Payment Brick -->
+    <script src="https://sdk.mercadopago.com/js/v2"></script>
+    <script src="supabase-client.js"></script>
+    <script src="image-upload.js"></script>
+    <script src="dashboard.js"></script>
+    <script src="qr-cards.js"></script>
+    <script>
+
+        function abrirSidebarMobile() {
+            document.getElementById('sidebar').classList.remove('-translate-x-full');
+            document.getElementById('sidebar-overlay').classList.remove('hidden');
+            document.body.classList.add('overflow-hidden');
+        }
+        function cerrarSidebarMobile() {
+            document.getElementById('sidebar').classList.add('-translate-x-full');
+            document.getElementById('sidebar-overlay').classList.add('hidden');
+            document.body.classList.remove('overflow-hidden');
+        }
+        // Si se agranda la ventana a desktop, aseguramos que quede todo limpio
+        window.addEventListener('resize', () => {
+            if (window.innerWidth >= 768) cerrarSidebarMobile();
+        });
+    </script>
+    <script src="pwa.js"></script>
+</body>
+</html>

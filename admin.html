@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script>
+        (function () {
+            var esStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+            if (esStandalone) document.documentElement.classList.add('pwa-standalone');
+        })();
+    </script>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0b0c10">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Dropea">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <link rel="stylesheet" href="pwa.css">
+    <title>Panel Admin | Dropea</title>
+    <link rel="shortcut icon" href="favicon-96x96.png">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,600;0,700;0,800;1,800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+                    },
+                    colors: {
+                        obsidian: '#0b0c10',
+                        surface: '#f8fafc',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Evita el "font boosting" extra de algunos navegadores móviles, que podía
+           hacer crecer el texto y meterlo debajo del botón de cerrar del sidebar. */
+        html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        @keyframes fadeIn { 
+            from { opacity: 0; transform: translateY(8px); } 
+            to { opacity: 1; transform: translateY(0); } 
+        }
+        .animate-fade-in { animation: fadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        
+        /* Scrollbar suave */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        /* Scrollbar del sidebar (fondo oscuro): blanco translúcido y fino para que combine
+           con el sidebar en vez de verse gruesa/genérica (algunos WebView de Android). */
+        .sidebar-scroll {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255, 255, 255, .18) transparent;
+        }
+        .sidebar-scroll::-webkit-scrollbar { width: 4px; }
+        .sidebar-scroll::-webkit-scrollbar-track { background: transparent; }
+        .sidebar-scroll::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, .18); border-radius: 9999px; }
+        .sidebar-scroll::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, .32); }
+
+        /* Filtro estado emprendedores */
+        .filtro-btn { color: #64748b; background: transparent; }
+        .filtro-btn:hover { color: #0f172a; }
+        .filtro-btn.filtro-activo { background: #ffffff; color: #0f172a; box-shadow: 0 1px 3px rgba(15,23,42,0.08); }
+
+        /* TARJETAS DE EMPRENDEDORES / COMERCIOS (secciones Emprendedores y Beneficios; el HTML de la
+           tarjeta lo arma tarjetaEmprendedorHTML en admin.js).
+           - Poco ancho (celular y tablet vertical con sidebar): una columna, tarjeta "de lista" con la
+             foto a la izquierda y la info a la derecha.
+           - Con lugar (640-767px sin sidebar, y desde 1024px): grilla de tarjetas verticales de mínimo 15rem. */
+        .emp-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.75rem; }
+        .emp-top { display: flex; gap: 0.875rem; padding: 0.875rem 0.875rem 0.25rem; }
+        .emp-top-solo { padding-bottom: 0.875rem; }
+        .emp-media { position: relative; flex: 0 0 auto; width: 5.5rem; height: 5.5rem; border-radius: 1rem; overflow: hidden; }
+        .emp-inicial { font-size: 2rem; }
+        .emp-info { flex: 1 1 0; min-width: 0; padding-right: 2.75rem; /* lugar para el botón 📣 / checkbox */ }
+        .emp-actions { padding: 0.5rem 0.875rem 0.875rem; }
+        .emp-badge-overlay { display: none; }
+        .emp-badge-inline { display: inline-flex; align-items: center; line-height: 1; }
+        @media (min-width: 640px) and (max-width: 767.98px), (min-width: 1024px) {
+            .emp-grid { grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 1.25rem; }
+            .emp-top, .emp-top-solo { flex-direction: column; gap: 0; padding: 0; }
+            .emp-media { width: 100%; height: auto; aspect-ratio: 4 / 3; border-radius: 0; }
+            .emp-inicial { font-size: 3.5rem; }
+            .emp-info { flex: 0 0 auto; padding: 1rem 1.125rem 0.25rem; }
+            .emp-top-solo .emp-info { padding-bottom: 1.125rem; }
+            .emp-actions { padding: 0.5rem 1.125rem 1.125rem; }
+            .emp-badge-overlay { display: inline-flex; align-items: center; line-height: 1; }
+            .emp-badge-inline { display: none; }
+        }
+
+        /* MODAL DETALLE EMPRENDEDOR: mismo patrón que el modal de producto de la
+           tienda (index.html) — bottom-sheet en mobile, modal centrado en desktop. */
+        #modal-detalle-overlay {
+            background: rgba(11,12,16,0.8);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity .25s ease;
+        }
+        #modal-detalle-overlay.abierto { opacity: 1; pointer-events: auto; }
+
+        #modal-detalle {
+            left: 0; right: 0; bottom: 0;
+            background: #fff;
+            border-radius: 24px 24px 0 0;
+            box-shadow: 0 -12px 40px rgba(0,0,0,0.2);
+            max-height: 92vh;
+            max-height: 92dvh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(100%);
+            transition: transform .3s ease, opacity .25s ease, visibility 0s linear .3s;
+            pointer-events: none;
+        }
+        #modal-detalle.abierto {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+            pointer-events: auto;
+            transition: transform .3s ease, opacity .25s ease, visibility 0s linear 0s;
+        }
+
+        @media (min-width: 640px) {
+            #modal-detalle {
+                left: 50%; right: auto; bottom: auto; top: 50%;
+                width: 92%; max-width: 620px; max-height: 88vh;
+                max-height: 88dvh;
+                border-radius: 24px;
+                transform: translate(-50%, -48%) scale(0.96);
+                box-shadow: 0 24px 64px rgba(0,0,0,0.28);
+            }
+            #modal-detalle.abierto { transform: translate(-50%, -50%) scale(1); }
+        }
+    </style>
+</head>
+<body class="bg-[#f1f5f9] text-slate-900 antialiased min-h-screen selection:bg-yellow-400 selection:text-black">
+
+    <!-- ===== PWA: splash screen (solo visible con la app instalada) ===== -->
+    <div class="pwa-splash" aria-hidden="true">
+        <div class="pwa-splash__glow-a"></div>
+        <div class="pwa-splash__glow-b"></div>
+        <div class="pwa-splash__content">
+            <div class="pwa-splash__logo" style="width:min(68vw,260px);height:auto;border-radius:0;background:none;box-shadow:none;border:0;padding:0">
+                <img src="dropea-logo.png" alt="Dropea" style="width:100%;height:auto;filter:invert(1)">
+            </div>
+            <div class="pwa-splash__bar"><div class="pwa-splash__bar-fill"></div></div>
+        </div>
+    </div>
+
+    <div class="flex flex-col md:flex-row min-h-screen">
+
+        <!-- TOP BAR MOBILE -->
+        <header class="md:hidden sticky top-0 z-30 flex items-center justify-between gap-3 bg-zinc-950 text-white px-4 py-3 border-b border-white/10 shadow-lg">
+            <div class="flex items-center min-w-0">
+                <img src="dropea-logo.png" alt="Dropea" class="h-9 w-auto object-contain invert">
+            </div>
+            <button onclick="abrirSidebarMobile()" aria-label="Abrir menú" class="w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 transition-all">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+            </button>
+        </header>
+
+        <!-- OVERLAY MOBILE -->
+        <div id="sidebar-overlay" onclick="cerrarSidebarMobile()" class="hidden fixed inset-0 bg-black/70 z-30 md:hidden"></div>
+
+        <!-- SIDEBAR. Mismo diseño que el del panel de emprendedores (dashboard.html): negro de marca,
+             destellos de 4 puntas, tipografía en mayúsculas y "sombra dura" amarilla en el ítem activo.
+             Los ítems activo/inactivo los define NAV_ACTIVO / NAV_INACTIVO en admin.js (mostrarSeccion
+             pisa el className). El scroll vive en el wrapper interno, no en el aside: así el footer de
+             "Cerrar Sesión" queda siempre visible debajo. -->
+        <aside id="sidebar" class="fixed md:sticky inset-y-0 left-0 md:top-0 md:h-screen w-72 max-w-[85vw] -translate-x-full md:translate-x-0 transition-transform duration-300 ease-out overflow-hidden bg-zinc-950 text-white p-5 md:p-6 flex flex-col border-r border-white/10 rounded-r-[2rem] z-40 shadow-2xl">
+
+            <!-- Decoración (no interactiva) -->
+            <div class="pointer-events-none absolute -top-24 -right-24 w-64 h-64 rounded-full" style="background: radial-gradient(closest-side, rgba(250,204,21,.16), transparent);" aria-hidden="true"></div>
+            <svg class="pointer-events-none absolute top-6 right-16 md:right-7 w-7 h-7 text-yellow-400" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 0c.6 6.2 5.8 11.4 12 12-6.2.6-11.4 5.8-12 12-.6-6.2-5.8-11.4-12-12C6.2 11.4 11.4 6.2 12 0z"/></svg>
+            <svg class="pointer-events-none absolute top-[4.25rem] right-24 md:right-16 w-3 h-3 text-white/40" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 0c.6 6.2 5.8 11.4 12 12-6.2.6-11.4 5.8-12 12-.6-6.2-5.8-11.4-12-12C6.2 11.4 11.4 6.2 12 0z"/></svg>
+
+            <button onclick="cerrarSidebarMobile()" aria-label="Cerrar menú" class="md:hidden absolute top-4 right-4 z-20 w-9 h-9 rounded-full bg-white/10 border border-white/15 flex items-center justify-center text-white hover:bg-yellow-400 hover:text-black hover:border-yellow-400 transition">
+                ✕
+            </button>
+            <div class="sidebar-scroll relative z-10 flex-1 flex flex-col min-h-0 overflow-y-auto overflow-x-hidden -mr-2 pr-2">
+                <!-- Logo. pr-12 en mobile reserva el espacio del botón ✕ (position:absolute). -->
+                <div class="mb-6 pr-12 md:pr-0">
+                    <img src="dropea-logo.png" alt="Dropea" class="h-14 w-auto max-w-full object-contain invert">
+                </div>
+
+                <!-- Tarjeta de cuenta -->
+                <div class="flex items-center gap-3 mb-7 bg-white/[0.04] border border-white/10 p-3 rounded-[1.5rem]">
+                    <div class="relative flex-shrink-0 p-[3px] bg-white rounded-full">
+                        <div class="w-10 h-10 rounded-full bg-black text-yellow-400 flex items-center justify-center font-black text-base overflow-hidden relative">
+                            <span>A</span>
+                        </div>
+                        <span class="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-400 border-2 border-zinc-950" title="Sesión activa"></span>
+                    </div>
+                    <div class="min-w-0 flex-1">
+                        <p class="text-white font-black text-sm leading-tight truncate">Panel Admin</p>
+                        <p class="text-zinc-500 text-[11px] font-bold truncate mt-0.5">Dropea</p>
+                    </div>
+                </div>
+
+                <!-- Navegación principal -->
+                <nav class="space-y-2">
+                    <p class="px-5 mb-2 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-600">Gestión</p>
+                    <button id="nav-emprendedores" onclick="mostrarSeccion('emprendedores'); cerrarSidebarMobile()" class="w-full text-left px-5 py-3 rounded-full transition-all duration-150 flex items-center gap-3 group text-[11px] font-black uppercase tracking-widest bg-white text-black shadow-[4px_4px_0_0_#facc15] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[2px_2px_0_0_#facc15]">
+                        <svg class="w-[18px] h-[18px] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                        <span class="flex-1">Emprendedores</span>
+                    </button>
+                    <button id="nav-productos" onclick="mostrarSeccion('productos'); cerrarSidebarMobile()" class="w-full text-left px-5 py-3 rounded-full transition-all duration-150 flex items-center gap-3 group text-[11px] font-black uppercase tracking-widest text-zinc-400 hover:text-yellow-400 hover:bg-white/5">
+                        <svg class="w-[18px] h-[18px] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+                        <span class="flex-1">Todos los productos</span>
+                    </button>
+                    <button id="nav-postulaciones" onclick="mostrarSeccion('postulaciones'); cerrarSidebarMobile()" class="w-full text-left px-5 py-3 rounded-full transition-all duration-150 flex items-center gap-3 group text-[11px] font-black uppercase tracking-widest text-zinc-400 hover:text-yellow-400 hover:bg-white/5">
+                        <svg class="w-[18px] h-[18px] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+                        <span class="flex-1 flex items-center gap-2">Postulación <span id="badge-postulaciones-pendientes" class="hidden text-[10px] font-black bg-yellow-400 text-black rounded-full px-1.5 py-0.5 leading-none"></span></span>
+                    </button>
+                    <div class="pt-5 mt-5 border-t border-white/10 space-y-2">
+                        <p class="px-5 mb-2 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-600">Dropea</p>
+                        <a href="index.html" class="w-full text-left px-5 py-3 rounded-full transition-all duration-150 flex items-center gap-3 group text-[11px] font-black uppercase tracking-widest text-zinc-400 hover:text-yellow-400 hover:bg-white/5">
+                            <svg class="w-[18px] h-[18px] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                            <span class="flex-1">Ir a Dropea</span>
+                        </a>
+                    </div>
+                </nav>
+            </div>
+
+            <!-- Footer Sidebar / Cerrar Sesión (siempre visible) -->
+            <div class="relative z-10 pt-5 border-t border-white/10 mt-5 flex-shrink-0">
+                <button onclick="confirmarCerrarSesion()" class="w-full flex items-center justify-center gap-2 rounded-full border-2 border-white/15 text-zinc-300 hover:border-rose-400 hover:text-rose-400 hover:bg-rose-500/10 px-4 py-3 text-[11px] font-black uppercase tracking-widest transition-all active:scale-95">
+                    <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+                    <span>Cerrar Sesión</span>
+                </button>
+            </div>
+        </aside>
+
+        <!-- CONTENEDOR PRINCIPAL -->
+        <main class="flex-1 p-4 sm:p-6 md:p-12 lg:p-14 max-w-7xl mx-auto w-full min-w-0">
+
+            <!-- SECCIÓN: EMPRENDEDORES -->
+            <section id="section-emprendedores" class="animate-fade-in">
+                <header class="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-6 md:mb-10 pb-6 border-b border-slate-200/80">
+                    <div>
+                        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-yellow-400/10 border border-yellow-400/20 text-yellow-800 text-xs font-bold uppercase tracking-wider mb-3">
+                            <span class="w-1.5 h-1.5 rounded-full bg-yellow-500"></span>
+                            Gestión General
+                        </div>
+                        <h1 class="text-2xl md:text-4xl font-extrabold tracking-tight text-slate-900">
+                            Emprendedores
+                        </h1>
+                        <p class="text-slate-500 text-sm md:text-base mt-1">
+                            Activá o bloqueá tiendas registradas en Dropea.
+                        </p>
+                        <p id="contador-emprendedores" class="text-slate-400 text-xs font-bold uppercase tracking-wider mt-3"></p>
+                    </div>
+                </header>
+
+                <!-- BUSCADOR Y FILTRO -->
+                <div class="flex flex-col lg:flex-row gap-2.5 sm:gap-3 mb-5">
+                    <div class="relative w-full lg:w-64 lg:shrink-0 min-w-0">
+                        <svg class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z"/></svg>
+                        <input id="buscador-emprendedores" type="text" inputmode="search" autocomplete="off"
+                            placeholder="Buscar tienda, usuario..."
+                            class="w-full h-11 sm:h-12 pl-10 pr-9 rounded-xl border border-slate-200 bg-white text-sm font-medium text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-yellow-400/60 focus:border-yellow-400 transition-all">
+                        <button id="btn-limpiar-busqueda" onclick="limpiarBusquedaEmprendedores()"
+                            class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition-colors">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
+                        </button>
+                    </div>
+                    <div id="filtro-estado-emprendedores" class="grid grid-cols-3 lg:flex gap-1.5 bg-slate-100 rounded-xl p-1 lg:shrink-0">
+                        <button data-filtro="todos" onclick="setFiltroEmprendedores('todos')" class="filtro-btn h-9 sm:h-auto px-2 sm:px-4 sm:py-2.5 rounded-lg text-[11px] sm:text-xs font-bold uppercase tracking-wide transition-all">Todos</button>
+                        <button data-filtro="activo" onclick="setFiltroEmprendedores('activo')" class="filtro-btn h-9 sm:h-auto px-2 sm:px-4 sm:py-2.5 rounded-lg text-[11px] sm:text-xs font-bold uppercase tracking-wide transition-all">Activos</button>
+                        <button data-filtro="bloqueado" onclick="setFiltroEmprendedores('bloqueado')" class="filtro-btn h-9 sm:h-auto px-2 sm:px-4 sm:py-2.5 rounded-lg text-[11px] sm:text-xs font-bold uppercase tracking-wide transition-all">Bloqueados</button>
+                    </div>
+                </div>
+
+                <!-- GRID DE EMPRENDEDORES -->
+                <div id="grid-emprendedores" class="emp-grid">
+                    <div class="col-span-full flex flex-col items-center justify-center gap-3 py-24 text-slate-400 font-semibold">
+                        <svg class="w-6 h-6 animate-spin text-slate-300" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                        <span>Cargando emprendedores...</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECCIÓN: TODOS LOS PRODUCTOS -->
+            <section id="section-productos" class="hidden animate-fade-in">
+                <header class="flex flex-col sm:flex-row sm:items-center justify-between gap-6 mb-6 md:mb-10 pb-6 border-b border-slate-200/80">
+                    <div>
+                        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-200/60 text-slate-700 text-xs font-bold uppercase tracking-wider mb-3">
+                            Supervisión
+                        </div>
+                        <h1 class="text-2xl md:text-4xl font-extrabold tracking-tight text-slate-900">
+                            Todos los productos
+                        </h1>
+                        <p class="text-slate-500 text-sm md:text-base mt-1">
+                            Vista global de productos publicados por todas las tiendas.
+                        </p>
+                    </div>
+                </header>
+
+                <div id="tabla-productos-admin" class="space-y-2 sm:space-y-3">
+                    <div class="flex flex-col items-center justify-center gap-2 py-16 text-slate-400 font-semibold">
+                        <svg class="w-6 h-6 animate-spin text-slate-300" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                        <span>Cargando productos...</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECCIÓN: POSTULACIONES (solicitudes de alta desde "Quiero mi web") -->
+            <section id="section-postulaciones" class="hidden animate-fade-in">
+                <header class="flex flex-col sm:flex-row sm:items-center justify-between gap-6 mb-6 md:mb-10 pb-6 border-b border-slate-200/80">
+                    <div>
+                        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-yellow-400/10 border border-yellow-400/20 text-yellow-800 text-xs font-bold uppercase tracking-wider mb-3">
+                            <span class="w-1.5 h-1.5 rounded-full bg-yellow-500"></span>
+                            Altas nuevas
+                        </div>
+                        <h1 class="text-2xl md:text-4xl font-extrabold tracking-tight text-slate-900">
+                            Postulación
+                        </h1>
+                        <p class="text-slate-500 text-sm md:text-base mt-1">
+                            Solicitudes de alta enviadas desde el botón «Quiero mi web» del sitio.
+                        </p>
+                        <p id="contador-postulaciones" class="text-slate-400 text-xs font-bold uppercase tracking-wider mt-3"></p>
+                    </div>
+                </header>
+
+                <!-- BUSCADOR Y FILTROS -->
+                <div class="flex flex-col gap-3 mb-5">
+                    <div>
+                        <p class="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5">Estado</p>
+                        <div id="filtro-estado-postulaciones" class="grid grid-cols-2 lg:inline-flex gap-1.5 bg-slate-100 rounded-xl p-1 w-full lg:w-auto">
+                            <button data-filtro="pendiente" onclick="setFiltroEstadoPostulaciones('pendiente')" class="filtro-btn filtro-activo h-9 sm:h-auto px-2 sm:px-4 sm:py-2.5 rounded-lg text-[11px] sm:text-xs font-bold uppercase tracking-wide transition-all">Pendientes</button>
+                            <button data-filtro="contactado" onclick="setFiltroEstadoPostulaciones('contactado')" class="filtro-btn h-9 sm:h-auto px-2 sm:px-4 sm:py-2.5 rounded-lg text-[11px] sm:text-xs font-bold uppercase tracking-wide transition-all">Contactados</button>
+                            <button data-filtro="aprobada" onclick="setFiltroEstadoPostulaciones('aprobada')" class="filtro-btn h-9 sm:h-auto px-2 sm:px-4 sm:py-2.5 rounded-lg text-[11px] sm:text-xs font-bold uppercase tracking-wide transition-all">Aprobadas</button>
+                            <button data-filtro="rechazada" onclick="setFiltroEstadoPostulaciones('rechazada')" class="filtro-btn h-9 sm:h-auto px-2 sm:px-4 sm:py-2.5 rounded-lg text-[11px] sm:text-xs font-bold uppercase tracking-wide transition-all">Rechazadas</button>
+                        </div>
+                    </div>
+                    <div class="relative w-full lg:w-64">
+                        <svg class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z"/></svg>
+                        <input id="buscador-postulaciones" type="text" inputmode="search" autocomplete="off"
+                            placeholder="Buscar postulante..."
+                            class="w-full h-11 sm:h-12 pl-10 pr-9 rounded-xl border border-slate-200 bg-white text-sm font-medium text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-yellow-400/60 focus:border-yellow-400 transition-all">
+                        <button id="btn-limpiar-busqueda-postulaciones" onclick="limpiarBusquedaPostulaciones()"
+                            class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition-colors">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
+                        </button>
+                    </div>
+                </div>
+
+                <div id="lista-postulaciones" class="space-y-2 sm:space-y-3">
+                    <div class="flex flex-col items-center justify-center gap-2 py-16 text-slate-400 font-semibold">
+                        <svg class="w-6 h-6 animate-spin text-slate-300" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                        <span>Cargando postulaciones...</span>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+
+    </div>
+
+    <!-- MODAL BLOQUEO EMPRENDEDOR -->
+    <div id="modal-bloqueo" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 sm:p-6">
+        <div class="absolute inset-0 bg-obsidian/80 transition-opacity"></div>
+
+        <form id="form-bloqueo" class="bg-white w-full max-w-md rounded-3xl p-6 sm:p-8 relative z-10 shadow-2xl border border-white/20 animate-fade-in">
+            <input type="hidden" id="bloqueo-emprendedor-id" value="">
+            <div class="flex items-center justify-between pb-4 mb-6 border-b border-slate-100">
+                <div>
+                    <h2 class="text-xl font-extrabold text-slate-900 uppercase tracking-tight">Bloquear tienda</h2>
+                    <p class="text-xs text-slate-400 mt-0.5">El emprendedor va a ver este motivo en su panel de gestión</p>
+                </div>
+                <button type="button" onclick="cerrarModalBloqueo()" class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 hover:bg-slate-200 hover:text-slate-700 transition">
+                    ✕
+                </button>
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Motivo</label>
+                <select id="bloqueo-motivo-select" class="w-full bg-slate-50/60 border border-slate-200 rounded-xl p-3.5 text-sm font-semibold focus:bg-white focus:border-obsidian focus:ring-4 focus:ring-yellow-400/20 outline-none transition-all">
+                    <option value="Inactividad de la tienda">Inactividad de la tienda</option>
+                    <option value="Incumplimiento de las normas de Dropea">Incumplimiento de las normas de Dropea</option>
+                    <option value="otro">Otro (especificar abajo)</option>
+                </select>
+            </div>
+
+            <div class="mb-6">
+                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Detalle adicional (opcional)</label>
+                <textarea id="bloqueo-detalle" rows="3" placeholder="Ej: contactar por WhatsApp para regularizar la situación." class="w-full bg-slate-50/60 border border-slate-200 rounded-xl p-3.5 text-sm font-semibold focus:bg-white focus:border-obsidian focus:ring-4 focus:ring-yellow-400/20 outline-none transition-all resize-none"></textarea>
+            </div>
+
+            <div class="flex gap-3 pt-2 border-t border-slate-100">
+                <button type="button" onclick="cerrarModalBloqueo()" class="w-1/3 py-3.5 rounded-xl font-bold uppercase text-xs tracking-wider text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">
+                    Cancelar
+                </button>
+                <button type="submit" id="btn-confirmar-bloqueo" class="w-2/3 bg-red-600 text-white py-3.5 rounded-xl font-bold uppercase text-xs tracking-wider hover:bg-red-700 transition-all shadow-lg shadow-red-900/10">
+                    Bloquear tienda
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- MODAL DETALLE EMPRENDEDOR: mismo estilo que el modal de producto de la tienda
+         (bottom-sheet en mobile, modal centrado con animación en desktop) -->
+    <div id="modal-detalle-overlay" class="fixed inset-0 z-50"></div>
+    <div id="modal-detalle" class="fixed z-50">
+        <!-- Manija de arrastre (solo mobile) -->
+        <div class="sm:hidden flex justify-center pt-3 pb-1 flex-shrink-0">
+            <span class="w-10 h-1.5 rounded-full bg-gray-300"></span>
+        </div>
+
+        <button type="button" onclick="cerrarModalDetalleEmprendedor()" aria-label="Cerrar" class="absolute top-4 right-4 z-20 w-9 h-9 rounded-full bg-white/90 backdrop-blur border border-gray-200 shadow flex items-center justify-center text-gray-500 hover:text-black transition-colors">✕</button>
+
+        <div class="overflow-y-auto flex-1 min-h-0">
+            <!-- Banner + avatar (patrón de puntos si no hay banner cargado) -->
+            <div class="relative h-28 sm:h-32 bg-gradient-to-br from-zinc-900 to-black overflow-hidden"
+                 style="background-image: radial-gradient(circle, rgba(255,255,255,0.09) 1.5px, transparent 1.5px); background-size: 20px 20px;">
+                <div id="detalle-banner-wrap" class="hidden absolute inset-0">
+                    <img id="detalle-banner" src="" alt="" class="w-full h-full object-cover">
+                    <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent"></div>
+                </div>
+            </div>
+
+            <div class="px-5 sm:px-8 pb-6 -mt-12 relative">
+                <div class="flex items-end gap-4">
+                    <div class="relative flex-shrink-0">
+                        <img id="detalle-avatar" src="" alt="" class="hidden w-24 h-24 rounded-2xl object-cover border-4 border-white shadow-xl bg-white">
+                        <div id="detalle-avatar-inicial" class="w-24 h-24 rounded-2xl bg-gradient-to-tr from-yellow-400 to-amber-300 text-black border-4 border-white shadow-xl flex items-center justify-center text-3xl font-black"></div>
+                    </div>
+                    <div class="min-w-0 flex-1 pb-1.5">
+                        <h2 id="detalle-nombre-tienda" class="text-lg sm:text-xl font-extrabold text-slate-900 leading-tight truncate"></h2>
+                        <p id="detalle-usuario" class="text-xs sm:text-sm text-slate-400 font-semibold truncate"></p>
+                    </div>
+                </div>
+
+                <!-- Badges de estado -->
+                <div class="flex flex-wrap items-center gap-2 mt-4">
+                    <span id="detalle-badge-activo" class="text-[10px] font-black uppercase px-2.5 py-1 rounded-full whitespace-nowrap"></span>
+                    <span id="detalle-badge-terminos" class="text-[10px] font-black uppercase px-2.5 py-1 rounded-full whitespace-nowrap"></span>
+                </div>
+
+                <div id="detalle-bloqueo-motivo" class="hidden mt-4 bg-red-50 border border-red-100 text-red-700 text-xs font-semibold rounded-xl p-3.5"></div>
+
+                <!-- Bio / descripción -->
+                <div class="mt-5 border-t border-gray-100 pt-4">
+                    <p class="text-[10px] font-black uppercase text-gray-400 mb-1.5 tracking-widest">Descripción</p>
+                    <p id="detalle-bio" class="text-gray-600 leading-relaxed text-sm"></p>
+                </div>
+
+                <!-- Datos de contacto -->
+                <div class="grid grid-cols-2 gap-2.5 mt-5">
+                    <div class="bg-gray-50 rounded-xl p-3">
+                        <p class="text-[10px] font-black uppercase text-gray-400 mb-1 tracking-widest">Email</p>
+                        <p id="detalle-email" class="text-sm font-semibold text-gray-800 break-words"></p>
+                    </div>
+                    <div class="bg-gray-50 rounded-xl p-3">
+                        <p class="text-[10px] font-black uppercase text-gray-400 mb-1 tracking-widest">WhatsApp</p>
+                        <p id="detalle-whatsapp" class="text-sm font-semibold text-gray-800 break-words"></p>
+                    </div>
+                    <div class="bg-gray-50 rounded-xl p-3">
+                        <p class="text-[10px] font-black uppercase text-gray-400 mb-1 tracking-widest">Ubicación</p>
+                        <p id="detalle-ubicacion" class="text-sm font-semibold text-gray-800 break-words"></p>
+                    </div>
+                    <div class="bg-gray-50 rounded-xl p-3">
+                        <p class="text-[10px] font-black uppercase text-gray-400 mb-1 tracking-widest">Horario</p>
+                        <p id="detalle-horario" class="text-sm font-semibold text-gray-800 break-words"></p>
+                    </div>
+                    <div class="bg-gray-50 rounded-xl p-3">
+                        <p class="text-[10px] font-black uppercase text-gray-400 mb-1 tracking-widest">Mapa</p>
+                        <p id="detalle-mapa" class="text-sm font-semibold text-gray-800 break-words"></p>
+                    </div>
+                    <div class="bg-gray-50 rounded-xl p-3">
+                        <p class="text-[10px] font-black uppercase text-gray-400 mb-1 tracking-widest">Costo de envío</p>
+                        <p id="detalle-costo-envio" class="text-sm font-semibold text-gray-800 break-words"></p>
+                    </div>
+                </div>
+
+                <!-- Redes sociales -->
+                <div class="mt-5">
+                    <p class="text-[10px] font-black uppercase text-gray-400 mb-1.5 tracking-widest">Redes sociales</p>
+                    <div id="detalle-redes" class="flex flex-wrap gap-2"></div>
+                </div>
+
+                <!-- Medios de pago -->
+                <div class="mt-5">
+                    <p class="text-[10px] font-black uppercase text-gray-400 mb-1.5 tracking-widest">Medios de pago</p>
+                    <div id="detalle-medios-pago" class="flex flex-wrap gap-2"></div>
+                </div>
+
+                <!-- Modo de la tienda -->
+                <div class="mt-5">
+                    <p class="text-[10px] font-black uppercase text-gray-400 mb-1.5 tracking-widest">Modo de la tienda</p>
+                    <div class="bg-gray-50 rounded-xl p-3.5 flex items-center justify-between gap-3 flex-wrap">
+                        <p id="detalle-modo" class="text-sm font-semibold text-gray-800"></p>
+                        <span id="detalle-modo-badge" class="px-3 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wide"></span>
+                    </div>
+                </div>
+
+                <!-- Anuncio -->
+                <div id="detalle-anuncio-wrap" class="hidden mt-5">
+                    <p class="text-[10px] font-black uppercase text-gray-400 mb-1.5 tracking-widest">Anuncio en tienda</p>
+                    <p id="detalle-anuncio" class="text-sm text-gray-700 bg-yellow-50 border border-yellow-100 rounded-xl p-3.5"></p>
+                </div>
+
+                <p id="detalle-creado" class="text-[10px] text-gray-400 font-semibold uppercase tracking-widest mt-5"></p>
+            </div>
+        </div>
+
+        <!-- Acción fija abajo -->
+        <div class="pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:pb-4 px-5 sm:px-8 flex-shrink-0 bg-white/95 backdrop-blur border-t border-gray-100 shadow-[0_-8px_20px_-6px_rgba(0,0,0,0.12)] flex flex-col gap-2">
+            <a id="detalle-btn-ver-tienda" href="#" target="_blank" rel="noopener" class="hidden w-full inline-flex items-center justify-center gap-2 py-3.5 rounded-2xl font-black uppercase tracking-widest text-xs sm:text-sm transition-all active:scale-95 bg-yellow-50 text-yellow-700 hover:bg-yellow-400 hover:text-black">
+                Ver tienda pública
+            </a>
+            <button type="button" id="detalle-btn-toggle" class="w-full inline-flex items-center justify-center gap-2 py-3.5 rounded-2xl font-black uppercase tracking-widest text-xs sm:text-sm transition-all active:scale-95">
+            </button>
+        </div>
+    </div>
+
+    <!-- MODAL DETALLE POSTULACIÓN -->
+    <div id="modal-postulacion-detalle" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 sm:p-6">
+        <div class="absolute inset-0 bg-obsidian/80 transition-opacity"></div>
+
+        <div class="bg-white w-full max-w-xl rounded-3xl relative z-10 shadow-2xl border border-white/20 animate-fade-in max-h-[90vh] overflow-y-auto">
+            <div class="flex items-center justify-between p-6 sm:p-8 pb-4 border-b border-slate-100 sticky top-0 bg-white">
+                <div>
+                    <span id="pd-badge-tipo" class="text-[10px] font-black uppercase px-2.5 py-1 rounded-full"></span>
+                    <h2 id="pd-nombre" class="text-xl font-extrabold text-slate-900 mt-2"></h2>
+                    <p id="pd-negocio" class="text-sm text-slate-400 font-semibold"></p>
+                </div>
+                <button type="button" onclick="cerrarModalPostulacionDetalle()" class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 hover:bg-slate-200 hover:text-slate-700 transition flex-shrink-0">✕</button>
+            </div>
+
+            <div class="p-6 sm:p-8 pt-4">
+                <div class="grid grid-cols-2 gap-2.5">
+                    <div class="bg-slate-50 rounded-xl p-3">
+                        <p class="text-[10px] font-black uppercase text-slate-400 mb-1 tracking-widest">WhatsApp</p>
+                        <p id="pd-whatsapp" class="text-sm font-semibold text-slate-800 break-words"></p>
+                    </div>
+                    <div class="bg-slate-50 rounded-xl p-3">
+                        <p class="text-[10px] font-black uppercase text-slate-400 mb-1 tracking-widest">Email</p>
+                        <p id="pd-email" class="text-sm font-semibold text-slate-800 break-words"></p>
+                    </div>
+                    <div class="bg-slate-50 rounded-xl p-3">
+                        <p class="text-[10px] font-black uppercase text-slate-400 mb-1 tracking-widest">Ciudad</p>
+                        <p id="pd-ciudad" class="text-sm font-semibold text-slate-800 break-words"></p>
+                    </div>
+                    <div class="bg-slate-50 rounded-xl p-3">
+                        <p class="text-[10px] font-black uppercase text-slate-400 mb-1 tracking-widest">Rubro</p>
+                        <p id="pd-categoria" class="text-sm font-semibold text-slate-800 break-words"></p>
+                    </div>
+                </div>
+
+                <div id="pd-instagram-wrap" class="mt-3 bg-slate-50 rounded-xl p-3">
+                    <p class="text-[10px] font-black uppercase text-slate-400 mb-1 tracking-widest">Instagram</p>
+                    <p id="pd-instagram" class="text-sm font-semibold text-slate-800 break-words"></p>
+                </div>
+
+                <div class="mt-5">
+                    <p class="text-[10px] font-black uppercase text-slate-400 mb-1.5 tracking-widest">Mensaje</p>
+                    <p id="pd-mensaje" class="text-sm text-slate-700 leading-relaxed"></p>
+                </div>
+
+                <p id="pd-creado" class="text-[10px] text-slate-400 font-semibold uppercase tracking-widest mt-5"></p>
+                <input type="hidden" id="pd-id" value="">
+
+                <div class="mt-6 pt-5 border-t border-slate-100">
+                    <p class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2.5">Estado</p>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button onclick="actualizarEstadoPostulacion('contactado')" class="py-2.5 rounded-xl text-[11px] font-black uppercase tracking-wide bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors">Contactado</button>
+                        <button onclick="actualizarEstadoPostulacion('aprobada')" class="py-2.5 rounded-xl text-[11px] font-black uppercase tracking-wide bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors">Aprobada</button>
+                        <button onclick="actualizarEstadoPostulacion('rechazada')" class="py-2.5 rounded-xl text-[11px] font-black uppercase tracking-wide bg-rose-50 text-rose-700 hover:bg-rose-100 transition-colors">Rechazada</button>
+                    </div>
+                    <button onclick="eliminarPostulacion()" class="w-full mt-3 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-wide text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors">Eliminar postulación</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="supabase-client.js"></script>
+    <script src="image-upload.js"></script>
+    <script src="admin.js"></script>
+    <script>
+        function abrirSidebarMobile() {
+            document.getElementById('sidebar').classList.remove('-translate-x-full');
+            document.getElementById('sidebar-overlay').classList.remove('hidden');
+            document.body.classList.add('overflow-hidden');
+        }
+        function cerrarSidebarMobile() {
+            document.getElementById('sidebar').classList.add('-translate-x-full');
+            document.getElementById('sidebar-overlay').classList.add('hidden');
+            document.body.classList.remove('overflow-hidden');
+        }
+        // Si se agranda la ventana a desktop, aseguramos que quede todo limpio
+        window.addEventListener('resize', () => {
+            if (window.innerWidth >= 768) cerrarSidebarMobile();
+        });
+    </script>
+    <script src="pwa.js"></script>
+</body>
+</html>

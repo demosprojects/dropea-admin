@@ -1,0 +1,502 @@
+/* ============================================================
+   PWA - Splash screen + aviso de actualización
+   Dropea
+   ============================================================
+   El splash SOLO se muestra cuando la app corre "instalada"
+   (display-mode: standalone / navigator.standalone en iOS).
+   En el navegador normal nunca aparece.
+   ------------------------------------------------------------ */
+
+.pwa-splash {
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: #0b0c10;
+    overflow: hidden;
+    opacity: 1;
+    transition: opacity .45s cubic-bezier(.16, 1, .3, 1);
+}
+
+html.pwa-standalone .pwa-splash {
+    display: flex;
+}
+
+.pwa-splash.pwa-splash-hide {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.pwa-splash__glow-a,
+.pwa-splash__glow-b {
+    position: absolute;
+    width: 22rem;
+    height: 22rem;
+    border-radius: 9999px;
+    filter: blur(70px);
+    pointer-events: none;
+}
+
+.pwa-splash__glow-a {
+    top: -7rem;
+    left: -7rem;
+    background: rgba(250, 204, 21, .14);
+}
+
+.pwa-splash__glow-b {
+    bottom: -7rem;
+    right: -7rem;
+    background: rgba(250, 204, 21, .07);
+}
+
+.pwa-splash__content {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.1rem;
+    animation: pwaSplashFadeUp .7s cubic-bezier(.16, 1, .3, 1);
+}
+
+.pwa-splash__logo {
+    width: 5.5rem;
+    height: 5.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: pwaSplashPulse 2s ease-in-out infinite;
+}
+
+.pwa-splash__logo svg {
+    width: 5.5rem;
+    height: 5.5rem;
+    color: #facc15;
+}
+
+.pwa-splash__logo img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.pwa-splash__title {
+    text-align: center;
+    font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+    line-height: 1;
+}
+
+.pwa-splash__brand {
+    display: inline-block;
+    font-size: .65rem;
+    font-weight: 800;
+    letter-spacing: .3em;
+    text-transform: uppercase;
+    color: #000;
+    background: #facc15;
+    padding: .15rem .5rem;
+    border-radius: .25rem;
+}
+
+.pwa-splash__name {
+    display: block;
+    margin-top: .3rem;
+    font-size: 1.5rem;
+    font-weight: 900;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: #fff;
+}
+
+.pwa-splash__sub {
+    display: block;
+    margin-top: -.1rem;
+    font-size: .95rem;
+    font-weight: 900;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: #fff;
+}
+
+.pwa-splash__bar {
+    width: 7rem;
+    height: 3px;
+    margin-top: .35rem;
+    border-radius: 9999px;
+    background: rgba(255, 255, 255, .08);
+    overflow: hidden;
+}
+
+.pwa-splash__bar-fill {
+    width: 40%;
+    height: 100%;
+    border-radius: 9999px;
+    background: #facc15;
+    animation: pwaSplashLoad 1.15s ease-in-out infinite;
+}
+
+@keyframes pwaSplashFadeUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pwaSplashPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.06); }
+}
+
+@keyframes pwaSplashLoad {
+    0% { transform: translateX(-130%); }
+    100% { transform: translateX(290%); }
+}
+
+/* ------------------------------------------------------------
+   Aviso de nueva versión disponible (bottom sheet)
+   ------------------------------------------------------------
+   Mismo lenguaje que el login y el splash de Dropea: panel oscuro,
+   brillo amarillo, tipografía Bricolage/Inter y botón amarillo.
+   Mobile: sube desde abajo. Desktop/tablet (>=560px): modal centrado.
+   Un solo botón: "Actualizar ahora" (la actualización es obligatoria).
+   ------------------------------------------------------------ */
+
+.pwa-update-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 99998;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    background: rgba(5, 6, 8, 0);
+    transition: background .35s ease;
+    /* El scroll no se "encadena" al fondo de la página */
+    overscroll-behavior: contain;
+}
+
+.pwa-update-overlay.pwa-update-overlay-show {
+    background: rgba(5, 6, 8, .62);
+    -webkit-backdrop-filter: blur(4px);
+    backdrop-filter: blur(4px);
+}
+
+/* Mientras el aviso está abierto, el fondo no se puede scrollear
+   (la clase la pone bloquearScrollFondo en pwa.js). */
+html.pwa-scroll-lock,
+body.pwa-scroll-lock {
+    overflow: hidden;
+}
+
+.pwa-update-sheet {
+    position: relative;
+    width: 100%;
+    max-width: 480px;
+    /* Si la pantalla es muy baja (celular horizontal / letra grande) la tarjeta scrollea por dentro, no la página */
+    max-height: 90vh;
+    max-height: 90dvh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    color: #f6f6ef;
+    font-family: 'Inter', 'Plus Jakarta Sans', sans-serif;
+    background:
+        radial-gradient(120% 70% at 0% 0%, rgba(250, 204, 21, .16), transparent 62%),
+        #0f100b;
+    border: 1px solid rgba(255, 255, 255, .09);
+    border-bottom: 0;
+    border-radius: 28px 28px 0 0;
+    padding: .75rem 1.5rem calc(1.5rem + env(safe-area-inset-bottom, 0px)) 1.5rem;
+    box-shadow: 0 -20px 60px rgba(0, 0, 0, .6);
+    transform: translateY(100%);
+    transition: transform .38s cubic-bezier(.16, 1, .3, 1);
+}
+
+.pwa-update-overlay-show .pwa-update-sheet {
+    transform: translateY(0);
+}
+
+.pwa-update-sheet__handle {
+    width: 38px;
+    height: 4px;
+    margin: 0 auto 1.25rem;
+    border-radius: 99px;
+    background: rgba(255, 255, 255, .18);
+}
+
+.pwa-update-sheet__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin: 0 0 1rem;
+}
+
+.pwa-update-sheet__brand {
+    display: inline-block;
+    margin-bottom: .6rem;
+    padding: .15rem .5rem;
+    border-radius: .25rem;
+    background: #facc15;
+    color: #000;
+    font-size: .65rem;
+    font-weight: 800;
+    letter-spacing: .3em;
+    text-transform: uppercase;
+}
+
+.pwa-update-sheet__title {
+    margin: 0;
+    font-family: 'Bricolage Grotesque', 'Inter', sans-serif;
+    font-size: 1.65rem;
+    font-weight: 800;
+    letter-spacing: -.02em;
+    line-height: 1.08;
+    color: #fff;
+}
+
+.pwa-update-sheet__icon {
+    position: relative;
+    flex-shrink: 0;
+    width: 3.6rem;
+    height: 3.6rem;
+    border-radius: 18px;
+    background: #0b0c10;
+    border: 1.5px solid rgba(250, 204, 21, .34);
+    box-shadow: 0 0 0 4px rgba(250, 204, 21, .08), 0 10px 26px rgba(0, 0, 0, .5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.pwa-update-sheet__icon-img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: inherit;
+    display: block;
+}
+
+.pwa-update-sheet__icon-fallback {
+    display: none;
+    width: 1.5rem;
+    height: 1.5rem;
+}
+
+.pwa-update-sheet__icon-dot {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    width: .7rem;
+    height: .7rem;
+    border-radius: 99px;
+    background: #facc15;
+    border: 2px solid #0f100b;
+    animation: pwaUpdateDotPulse 1.8s ease-in-out infinite;
+}
+
+@keyframes pwaUpdateDotPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.25); }
+}
+
+.pwa-update-sheet__body p {
+    margin: 0 0 .8rem;
+    font-size: .92rem;
+    font-weight: 500;
+    color: #a4a496;
+    line-height: 1.55;
+}
+
+.pwa-update-sheet__body p:last-child {
+    margin-bottom: 1.25rem;
+}
+
+.pwa-update-sheet__body strong {
+    color: #fff;
+    font-weight: 700;
+}
+
+.pwa-update-sheet__btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: .5rem;
+    min-height: 3.5rem;
+    border: none;
+    border-radius: 16px;
+    background: #facc15;
+    color: #121208;
+    font-family: 'Inter', sans-serif;
+    font-weight: 800;
+    font-size: .95rem;
+    letter-spacing: .01em;
+    cursor: pointer;
+    box-shadow: 0 10px 30px rgba(250, 204, 21, .22);
+    transition: background .2s, box-shadow .2s, transform .15s;
+}
+
+.pwa-update-sheet__btn:hover {
+    background: #ffd93a;
+    box-shadow: 0 12px 36px rgba(250, 204, 21, .32);
+}
+
+.pwa-update-sheet__btn:active {
+    transform: scale(.985);
+}
+
+.pwa-update-sheet__btn:disabled {
+    cursor: default;
+    opacity: .85;
+}
+
+.pwa-update-sheet__btn:focus-visible {
+    outline: 3px solid #facc15;
+    outline-offset: 3px;
+}
+
+.pwa-update-sheet__spin {
+    width: 16px;
+    height: 16px;
+    border-radius: 99px;
+    border: 2px solid currentColor;
+    border-top-color: transparent;
+    animation: pwaUpdateSpin .7s linear infinite;
+    display: none;
+    flex-shrink: 0;
+}
+
+@keyframes pwaUpdateSpin {
+    to { transform: rotate(360deg); }
+}
+
+@media (min-width: 560px) {
+    .pwa-update-overlay {
+        align-items: center;
+    }
+
+    .pwa-update-sheet {
+        border-bottom: 1px solid rgba(255, 255, 255, .09);
+        border-radius: 28px;
+        padding: 1.75rem;
+        transform: translateY(16px) scale(.97);
+        transition: transform .3s cubic-bezier(.16, 1, .3, 1);
+        box-shadow: 0 30px 80px rgba(0, 0, 0, .6);
+    }
+
+    .pwa-update-overlay-show .pwa-update-sheet {
+        transform: translateY(0) scale(1);
+    }
+
+    .pwa-update-sheet__handle {
+        display: none;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .pwa-update-sheet,
+    .pwa-update-overlay {
+        transition: none;
+    }
+
+    .pwa-update-sheet__icon-dot {
+        animation: none;
+    }
+}
+
+/* ------------------------------------------------------------
+   Modal: instrucciones de instalación (iOS)
+   ------------------------------------------------------------ */
+
+.pwa-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 99997;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding: 0;
+}
+
+.pwa-modal.hidden {
+    display: none;
+}
+
+.pwa-modal__overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(11, 12, 16, .6);
+    backdrop-filter: blur(2px);
+    animation: pwaModalFade .25s ease-out;
+}
+
+.pwa-modal__card {
+    position: relative;
+    width: 100%;
+    max-width: 26rem;
+    background: #fff;
+    border-radius: 1.5rem 1.5rem 0 0;
+    padding: 1.5rem 1.5rem calc(1.5rem + env(safe-area-inset-bottom, 0px)) 1.5rem;
+    box-shadow: 0 -10px 40px rgba(0, 0, 0, .35);
+    animation: pwaModalSlideUp .3s cubic-bezier(.16, 1, .3, 1);
+}
+
+.pwa-modal__close {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 9999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #6b7280;
+    background: #f3f4f6;
+    border: none;
+    cursor: pointer;
+}
+
+.pwa-modal__close:active {
+    transform: scale(.92);
+}
+
+.pwa-modal__step {
+    flex-shrink: 0;
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 9999px;
+    background: #facc15;
+    color: #000;
+    font-size: .7rem;
+    font-weight: 900;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+@keyframes pwaModalFade {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes pwaModalSlideUp {
+    from { opacity: 0; transform: translateY(24px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@media (min-width: 560px) {
+    .pwa-modal {
+        align-items: center;
+    }
+
+    .pwa-modal__card {
+        border-radius: 1.5rem;
+        padding: 1.75rem;
+    }
+
+    @keyframes pwaModalSlideUp {
+        from { opacity: 0; transform: translateY(10px) scale(.98); }
+        to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+}
