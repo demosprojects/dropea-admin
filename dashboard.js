@@ -2239,7 +2239,10 @@ async function abrirModalPagoSuscripcion() {
             brickTarjetaControlador = null;
         }
 
-        const emailPagador = perfilActual?.email || undefined;
+        // Si le pasamos el email al Brick, NO muestra el campo de e-mail.
+        // Sale de la cuenta con la que inició sesión (Supabase Auth).
+        const sesionPago = await obtenerSesion();
+        const emailPagador = sesionPago?.user?.email || perfilActual?.email || undefined;
 
         brickTarjetaControlador = await mpInstancia.bricks().create('cardPayment', 'brick-tarjeta', {
             initialization: {
