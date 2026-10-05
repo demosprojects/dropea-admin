@@ -5,7 +5,7 @@
 // relevantes. Al cambiar, el Service Worker detecta que es "nuevo",
 // vuelve a precargar todo y le avisa al usuario para que actualice
 // (ver pwa.js, que muestra el aviso "Hay una nueva versión disponible").
-const VERSION = 'v2.1.3';
+const VERSION = 'v2.2.3';
 const CACHE_NAME = `dropea-${VERSION}`;
 // Prefijo de las cachés de la marca anterior: se siguen reconociendo para
 // borrarlas en 'activate' y no dejar basura en los dispositivos que ya tenían la app.
