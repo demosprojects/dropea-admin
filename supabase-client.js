@@ -22,8 +22,8 @@ var SUPABASE_URL = "https://hyfkynnkppgxityeuvjv.supabase.co";
 var SUPABASE_ANON_KEY = "sb_publishable_tWjhlwAFPcUPcLG3l_9U1Q_GkpfT3R9";
 
 // Dominio público del sitio (sin "/" al final). Lo usan los links y QR
-// que arma el dashboard: SITIO_PUBLICO + "/tienda/<usuario>"
-var SITIO_PUBLICO = window.location.origin;
+// que arma el dashboard: SITIO_PUBLICO + "/tienda?t=<usuario>"
+var SITIO_PUBLICO = 'https://dropea.com.ar';
 
 // Imagen que se usa cuando un producto no tiene foto
 // (archivo incluido: sin-foto.svg, en la raíz del sitio)
