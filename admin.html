@@ -275,10 +275,11 @@
                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
                         </button>
                     </div>
-                    <div id="filtro-estado-emprendedores" class="grid grid-cols-3 lg:flex gap-1.5 bg-slate-100 rounded-xl p-1 lg:shrink-0">
+                    <div id="filtro-estado-emprendedores" class="grid grid-cols-2 sm:grid-cols-4 lg:flex gap-1.5 bg-slate-100 rounded-xl p-1 lg:shrink-0">
                         <button data-filtro="todos" onclick="setFiltroEmprendedores('todos')" class="filtro-btn h-9 sm:h-auto px-2 sm:px-4 sm:py-2.5 rounded-lg text-[11px] sm:text-xs font-bold uppercase tracking-wide transition-all">Todos</button>
                         <button data-filtro="activo" onclick="setFiltroEmprendedores('activo')" class="filtro-btn h-9 sm:h-auto px-2 sm:px-4 sm:py-2.5 rounded-lg text-[11px] sm:text-xs font-bold uppercase tracking-wide transition-all">Activos</button>
                         <button data-filtro="bloqueado" onclick="setFiltroEmprendedores('bloqueado')" class="filtro-btn h-9 sm:h-auto px-2 sm:px-4 sm:py-2.5 rounded-lg text-[11px] sm:text-xs font-bold uppercase tracking-wide transition-all">Bloqueados</button>
+                        <button data-filtro="sin_pago" onclick="setFiltroEmprendedores('sin_pago')" class="filtro-btn h-9 sm:h-auto px-2 sm:px-4 sm:py-2.5 rounded-lg text-[11px] sm:text-xs font-bold uppercase tracking-wide transition-all">Sin pago</button>
                     </div>
                 </div>
 
@@ -509,6 +510,18 @@
                 <div id="detalle-anuncio-wrap" class="hidden mt-5">
                     <p class="text-[10px] font-black uppercase text-gray-400 mb-1.5 tracking-widest">Anuncio en tienda</p>
                     <p id="detalle-anuncio" class="text-sm text-gray-700 bg-yellow-50 border border-yellow-100 rounded-xl p-3.5"></p>
+                </div>
+
+                <!-- Suscripción: vencimiento y asignar mes por transferencia -->
+                <div id="detalle-suscripcion-wrap" class="hidden mt-5">
+                    <p class="text-[10px] font-black uppercase text-gray-400 mb-1.5 tracking-widest">Suscripción</p>
+                    <div class="bg-gray-50 rounded-xl p-3.5 flex items-center justify-between gap-3 flex-wrap">
+                        <p id="detalle-suscripcion-texto" class="text-sm font-semibold text-gray-800"></p>
+                        <span id="detalle-suscripcion-badge" class="px-3 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wide"></span>
+                    </div>
+                    <button type="button" id="detalle-btn-asignar-mes" class="mt-2 w-full inline-flex items-center justify-center gap-2 py-3 rounded-2xl font-black uppercase tracking-widest text-[11px] sm:text-xs transition-all active:scale-95 bg-emerald-50 text-emerald-700 hover:bg-emerald-500 hover:text-white">
+                        Asignar 1 mes (pago por transferencia)
+                    </button>
                 </div>
 
                 <p id="detalle-creado" class="text-[10px] text-gray-400 font-semibold uppercase tracking-widest mt-5"></p>
