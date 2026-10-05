@@ -16,7 +16,7 @@ const inicioCargado = { perfil: false, productos: false, categorias: false }; //
 
 // URL del Worker de Cloudflare que maneja las suscripciones con MercadoPago.
 // Reemplazar por la URL real una vez hecho el "wrangler deploy".
-const WORKER_SUSCRIPCIONES_URL = 'https://comunidad-emprendedora-api.kentuckyr2.workers.dev';
+const WORKER_SUSCRIPCIONES_URL = 'https://dropeapagos.leonelgalazzoaz.workers.dev';
 
 // URL del Web App de Google Apps Script que recibe los reportes de
 // "Reportar un problema" (sección Ayuda) y los guarda en un Google
@@ -162,8 +162,10 @@ function mostrarModalVencimiento(info) {
         // así que no mostramos el botón de pagar en ese caso.
         btnPagar.classList.add('hidden');
     } else {
-        titulo.textContent = 'Tu mes gratis terminó';
-        mensaje.textContent = 'Tu tienda dejó de mostrarse en Dropea. Para reactivarla, activá tu suscripción mensual.';
+        titulo.textContent = info.enPruebaGratis ? 'Tu mes gratis terminó' : 'Tu suscripción venció';
+        mensaje.textContent = info.enPruebaGratis
+            ? 'Tu tienda dejó de mostrarse en Dropea. Para reactivarla, activá tu suscripción mensual.'
+            : 'Tu tienda dejó de mostrarse en Dropea. Para reactivarla, renová tu suscripción mensual.';
         btnPagar.classList.remove('hidden');
     }
 
@@ -298,7 +300,9 @@ function actualizarBannerBloqueo(emprendedor) {
         motivoEl.textContent = emprendedor.motivo_bloqueo || 'Contactate con el equipo de Dropea para más información.';
     } else {
         if (titulo) titulo.textContent = 'Tu tienda no se muestra en Dropea';
-        motivoEl.textContent = 'Terminó tu mes gratis (o venció tu suscripción) sin renovarse. Activá el pago para que vuelva a aparecer.';
+        motivoEl.textContent = acceso.enPruebaGratis
+            ? 'Terminó tu mes gratis sin activarse la suscripción. Activá el pago para que vuelva a aparecer.'
+            : 'Venció tu suscripción sin renovarse. Renovala para que tu tienda vuelva a aparecer.';
     }
 }
 
@@ -1029,7 +1033,18 @@ function renderInicio() {
         bloqueada: !!acceso.bloqueado, nProductos: productosCache.length,
     });
     const fechaCapitalizada = bienvenida.fecha.charAt(0).toUpperCase() + bienvenida.fecha.slice(1);
-    document.getElementById('inicio-saludo-texto').textContent = `Tu panel · ${fechaCapitalizada}`;
+    // "Tu panel" y la fecha van en spans aparte: en pantallas angostas se apilan en dos líneas
+    // (la fecha nunca se corta); desde sm van en una sola línea separados por un punto.
+    const saludoTexto = document.getElementById('inicio-saludo-texto');
+    const spanPanel = document.createElement('span');
+    spanPanel.textContent = 'Tu panel';
+    const spanPunto = document.createElement('span');
+    spanPunto.className = 'hidden sm:inline';
+    spanPunto.textContent = '·';
+    const spanFecha = document.createElement('span');
+    spanFecha.className = 'text-yellow-400/70 sm:text-yellow-400';
+    spanFecha.textContent = fechaCapitalizada;
+    saludoTexto.replaceChildren(spanPanel, spanPunto, spanFecha);
     document.getElementById('inicio-titulo').textContent = bienvenida.titulo;
     document.getElementById('inicio-subtitulo').textContent = bienvenida.subtitulo;
     document.getElementById('inicio-momento').textContent = bienvenida.emoji;
@@ -1048,7 +1063,7 @@ function renderInicio() {
         estado = { texto: 'Todavía sin productos visibles', clasePill: 'bg-yellow-400/15 text-yellow-300', clasePunto: 'bg-yellow-400' };
     }
     const pill = document.getElementById('inicio-estado');
-    pill.className = `inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-wider px-3 py-1.5 rounded-full ${estado.clasePill}`;
+    pill.className = `self-start inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-wider px-3 py-1.5 rounded-full ${estado.clasePill}`;
     document.getElementById('inicio-estado-punto').className = `w-2 h-2 rounded-full ${estado.clasePunto}`;
     document.getElementById('inicio-estado-texto').textContent = estado.texto;
 
@@ -2092,9 +2107,13 @@ function renderEstadoSuscripcion(data) {
     // criterio acá para que el cartel no contradiga al resto del panel.
     const acceso = calcularEstadoAcceso(data);
 
-    const estado = acceso.enPruebaGratis
+    let estado = acceso.enPruebaGratis
         ? 'prueba_gratis'
         : (data.suscripcion_estado || 'sin_suscripcion');
+
+    // Pagó antes pero ya pasó la fecha de vencimiento: se muestra como vencida
+    // (con botón para volver a pagar) en vez de "Suscripción activa".
+    if (estado === 'authorized' && acceso.bloqueado && acceso.motivo === 'pago') estado = 'vencida';
 
     const vencimiento = acceso.enPruebaGratis
         ? acceso.vencimiento
