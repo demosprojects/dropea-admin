@@ -95,12 +95,32 @@ async function confirmarCerrarSesion() {
 
 
 // ============================================================
-// ACCESO: ¿la tienda está bloqueada?
-// Sin cobro de suscripciones, el único motivo de bloqueo es que el
-// admin haya desactivado la cuenta (activo === false).
+// ACCESO / PAYWALL: ¿la tienda está bloqueada?
+//
+// Se bloquea por dos motivos posibles:
+//   1) "admin" -> el equipo la bloqueó a mano (activo === false).
+//   2) "pago"  -> venció el plazo: la fecha guardada en
+//      "fecha_vencimiento_suscripcion" (la pone el Worker al aprobarse
+//      un pago, un mes después), o, si esa fecha nunca se cargó y la
+//      cuenta nunca pagó, DIAS_PRUEBA_GRATIS días desde "created_at".
+//
+// NOTA: el pago es mensual y único (no una suscripción recurrente de
+// MercadoPago), por eso incluso con suscripcion_estado === 'authorized'
+// hay que mirar la fecha de vencimiento: nada vuelve a cambiar el
+// estado solo cuando pasa el mes.
 // ============================================================
+const DIAS_PRUEBA_GRATIS = 30;
+
+// Únicos valores de "suscripcion_estado" que indican que alguna vez hubo
+// un intento real de pago (aprobado, pendiente, rechazado, cancelado o
+// pausado). Cualquier otro valor -'sin_suscripcion', vacío, etc.- significa
+// que la cuenta todavía no pasó por MercadoPago y puede seguir dentro de
+// su mes gratis.
+const ESTADOS_SUSCRIPCION_REAL = ['authorized', 'pending', 'pago_rechazado', 'cancelled', 'paused'];
+
 function calcularEstadoAcceso(emprendedor) {
     if (!emprendedor) return { bloqueado: false };
+
     if (emprendedor.activo === false) {
         return {
             bloqueado: true,
@@ -108,7 +128,26 @@ function calcularEstadoAcceso(emprendedor) {
             mensaje: emprendedor.motivo_bloqueo || 'Tu cuenta fue bloqueada.',
         };
     }
-    return { bloqueado: false };
+
+    const estado = emprendedor.suscripcion_estado || 'sin_suscripcion';
+    const esSoloBeneficios = !!emprendedor.solo_beneficios;
+    const enPruebaGratis = !ESTADOS_SUSCRIPCION_REAL.includes(estado);
+
+    let vencimiento = emprendedor.fecha_vencimiento_suscripcion
+        ? new Date(emprendedor.fecha_vencimiento_suscripcion)
+        : null;
+
+    // Sin fecha guardada y sin haber pagado nunca: el límite es
+    // DIAS_PRUEBA_GRATIS días desde que se creó la cuenta.
+    if (!vencimiento && estado !== 'authorized' && emprendedor.created_at) {
+        vencimiento = new Date(new Date(emprendedor.created_at).getTime() + DIAS_PRUEBA_GRATIS * 24 * 60 * 60 * 1000);
+    }
+
+    if (vencimiento && Date.now() > vencimiento.getTime()) {
+        return { bloqueado: true, motivo: 'pago', vencimiento, enPruebaGratis, soloBeneficios: esSoloBeneficios };
+    }
+
+    return { bloqueado: false, enPruebaGratis, vencimiento, soloBeneficios: esSoloBeneficios };
 }
 
 
