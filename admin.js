@@ -109,8 +109,13 @@ async function cargarEmprendedores() {
 //   true  -> activa (visible en /tienda/<usuario>)
 //   false -> bloqueada por el admin
 //   null  -> sin activar (la fila existe pero la tienda pública no la muestra)
+// Además, si está activa pero terminó su mes gratis / su suscripción (misma regla
+// que el panel del emprendedor y la tienda pública), el estado es 'sin_pago'.
 function estadoTienda(e) {
-    if (e.activo === true) return 'activa';
+    if (e.activo === true) {
+        const acceso = calcularEstadoAcceso(e);
+        return (acceso.bloqueado && acceso.motivo === 'pago') ? 'sin_pago' : 'activa';
+    }
     if (e.activo === false) return 'bloqueada';
     return 'sin_activar';
 }
@@ -140,6 +145,7 @@ function renderEmprendedores() {
     // Sin activar = activo vacío: existe pero la tienda pública no la muestra.
     if (filtroEstadoActual === 'activo') data = data.filter(e => estadoTienda(e) === 'activa');
     if (filtroEstadoActual === 'bloqueado') data = data.filter(e => estadoTienda(e) !== 'activa');
+    if (filtroEstadoActual === 'sin_pago') data = data.filter(e => estadoTienda(e) === 'sin_pago');
 
     if (busquedaActual) {
         data = data.filter(e => {
@@ -151,7 +157,9 @@ function renderEmprendedores() {
     }
 
     const totalActivos = base.filter(e => estadoTienda(e) === 'activa').length;
+    const totalSinPago = base.filter(e => estadoTienda(e) === 'sin_pago').length;
     contador.textContent = `${total} tienda${total === 1 ? '' : 's'} · ${totalActivos} activa${totalActivos === 1 ? '' : 's'}` +
+        (totalSinPago ? ` · ${totalSinPago} sin pago` : '') +
         (data.length !== total ? ` · ${data.length} coincidencia${data.length === 1 ? '' : 's'}` : '');
 
     if (data.length === 0) {
@@ -192,7 +200,9 @@ function tarjetaEmprendedorHTML(e) {
         ? { texto: 'Activa', clase: 'bg-emerald-500/95 text-white' }
         : estado === 'bloqueada'
             ? { texto: 'Bloqueada', clase: 'bg-red-500/95 text-white' }
-            : { texto: 'Sin activar', clase: 'bg-amber-500/95 text-white' };
+            : estado === 'sin_pago'
+                ? { texto: 'Sin pago', clase: 'bg-orange-500/95 text-white' }
+                : { texto: 'Sin activar', clase: 'bg-amber-500/95 text-white' };
 
     // El estado se muestra de dos formas según el layout (ver .emp-* en admin.html):
     // encima de la foto en la tarjeta vertical, y dentro de la info en la tarjeta de lista.
@@ -203,8 +213,10 @@ function tarjetaEmprendedorHTML(e) {
     const usuario = e.usuarios ? escapeHtml(e.usuarios.usuario) : '-';
     const nombre = escapeHtml(e.nombre_tienda);
 
-    const textoBoton = estado === 'activa' ? 'Bloquear' : 'Activar';
-    const claseBoton = estado === 'activa'
+    // activo === true cubre 'activa' y 'sin_pago': en ambos el botón es Bloquear.
+    const estaActivo = e.activo === true;
+    const textoBoton = estaActivo ? 'Bloquear' : 'Activar';
+    const claseBoton = estaActivo
         ? 'bg-red-50 text-red-500 hover:bg-red-500 hover:text-white'
         : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-500 hover:text-white';
     const claseBotonAccion = 'w-full min-h-[2.5rem] px-3 py-2 rounded-xl font-black text-[11px] uppercase tracking-wide leading-tight transition-colors';
@@ -229,7 +241,11 @@ function tarjetaEmprendedorHTML(e) {
             </div>
         </div>
         <div class="emp-actions mt-auto flex flex-col gap-2">
-            <button onclick="event.stopPropagation(); toggleEmprendedor('${e.id}', ${estado === 'activa'})"
+            ${estado === 'sin_pago' ? `<button onclick="event.stopPropagation(); asignarMesEmprendedor('${e.id}')"
+                class="${claseBotonAccion} bg-emerald-500 text-white hover:bg-emerald-600">
+                Asignar 1 mes (transferencia)
+            </button>` : ''}
+            <button onclick="event.stopPropagation(); toggleEmprendedor('${e.id}', ${estaActivo})"
                 class="${claseBotonAccion} ${claseBoton}">
                 ${textoBoton}
             </button>
@@ -282,6 +298,9 @@ function abrirModalDetalleEmprendedor(id) {
     } else if (estadoDetalle === 'bloqueada') {
         badgeActivo.textContent = 'Bloqueada';
         badgeActivo.className = 'text-[10px] font-black uppercase px-2.5 py-1 rounded-full whitespace-nowrap bg-red-100 text-red-700';
+    } else if (estadoDetalle === 'sin_pago') {
+        badgeActivo.textContent = 'Sin pago';
+        badgeActivo.className = 'text-[10px] font-black uppercase px-2.5 py-1 rounded-full whitespace-nowrap bg-orange-100 text-orange-700';
     } else {
         badgeActivo.textContent = 'Sin activar';
         badgeActivo.className = 'text-[10px] font-black uppercase px-2.5 py-1 rounded-full whitespace-nowrap bg-amber-100 text-amber-700';
@@ -304,6 +323,9 @@ function abrirModalDetalleEmprendedor(id) {
     const motivoWrap = document.getElementById('detalle-bloqueo-motivo');
     if (estadoDetalle === 'bloqueada') {
         motivoWrap.textContent = e.motivo_bloqueo ? `Motivo del bloqueo: ${e.motivo_bloqueo}` : 'Tienda bloqueada.';
+        motivoWrap.classList.remove('hidden');
+    } else if (estadoDetalle === 'sin_pago') {
+        motivoWrap.textContent = 'La tienda no se muestra al público porque terminó su mes gratis o su suscripción y no pagó. Si ya te pagó por transferencia, tocá \"Asignar 1 mes\".';
         motivoWrap.classList.remove('hidden');
     } else if (estadoDetalle === 'sin_activar') {
         motivoWrap.textContent = 'Esta tienda todavía no está activada, por eso /tienda/<usuario> no la muestra. Tocá "Activar tienda" para publicarla.';
@@ -367,9 +389,32 @@ function abrirModalDetalleEmprendedor(id) {
 
     document.getElementById('detalle-creado').textContent = e.created_at ? `Cuenta creada el ${formatoFecha(e.created_at)}` : '';
 
-    // Botón principal: bloquear / activar
+    // Suscripción: vencimiento y botón para asignar un mes (pago por transferencia).
+    // Solo tiene sentido en tiendas activas (al día o sin pago); las bloqueadas
+    // o sin activar se manejan primero con "Activar tienda".
+    const suscWrap = document.getElementById('detalle-suscripcion-wrap');
+    const tieneSusc = e.activo === true;
+    suscWrap.classList.toggle('hidden', !tieneSusc);
+    if (tieneSusc) {
+        const acceso = calcularEstadoAcceso(e);
+        const fechaCorta = (d) => d ? d.toLocaleDateString('es-AR') : '';
+        const textoSusc = document.getElementById('detalle-suscripcion-texto');
+        const badgeSusc = document.getElementById('detalle-suscripcion-badge');
+        let texto = 'Sin fecha de vencimiento cargada';
+        if (acceso.vencimiento) {
+            if (estadoDetalle === 'sin_pago') texto = `${acceso.enPruebaGratis ? 'Su mes gratis terminó' : 'Su suscripción venció'} el ${fechaCorta(acceso.vencimiento)}`;
+            else texto = `${acceso.enPruebaGratis ? 'Mes gratis hasta' : 'Al día hasta'} el ${fechaCorta(acceso.vencimiento)}`;
+        }
+        textoSusc.textContent = texto;
+        badgeSusc.textContent = estadoDetalle === 'sin_pago' ? 'Sin pago' : (acceso.enPruebaGratis ? 'Mes gratis' : 'Al día');
+        badgeSusc.className = 'px-3 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wide ' +
+            (estadoDetalle === 'sin_pago' ? 'bg-orange-100 text-orange-700' : (acceso.enPruebaGratis ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'));
+        document.getElementById('detalle-btn-asignar-mes').onclick = () => asignarMesEmprendedor(e.id);
+    }
+
+    // Botón principal: bloquear / activar (activo === true cubre 'activa' y 'sin_pago')
     const btnToggle = document.getElementById('detalle-btn-toggle');
-    const activa = estadoDetalle === 'activa';
+    const activa = e.activo === true;
     btnToggle.textContent = activa ? 'Bloquear tienda' : 'Activar tienda';
     btnToggle.className = `w-full inline-flex items-center justify-center gap-2 py-3.5 rounded-2xl font-black uppercase tracking-widest text-xs sm:text-sm transition-all active:scale-95 ${activa ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-black text-white hover:bg-yellow-400 hover:text-black'}`;
     btnToggle.onclick = () => {
@@ -386,6 +431,50 @@ function cerrarModalDetalleEmprendedor() {
     document.getElementById('modal-detalle-overlay').classList.remove('abierto');
     document.getElementById('modal-detalle').classList.remove('abierto');
     document.body.classList.remove('overflow-hidden');
+}
+
+// Pago por transferencia: suma un mes a la suscripción del emprendedor.
+// Si todavía tiene tiempo vigente (mes gratis o suscripción al día), el mes se
+// suma a esa fecha; si ya venció, se cuenta desde hoy. Deja la cuenta como
+// "authorized" con la nueva fecha de vencimiento (lo mismo que hace el Worker
+// cuando se aprueba un pago con tarjeta), así el panel del emprendedor y la
+// tienda pública vuelven a funcionar solos.
+function sumarUnMes(fecha) {
+    const f = new Date(fecha.getTime());
+    const dia = f.getDate();
+    f.setDate(1);
+    f.setMonth(f.getMonth() + 1);
+    const ultimoDia = new Date(f.getFullYear(), f.getMonth() + 1, 0).getDate();
+    f.setDate(Math.min(dia, ultimoDia));
+    return f;
+}
+
+async function asignarMesEmprendedor(id) {
+    const e = emprendedoresCache.find(x => String(x.id) === String(id));
+    if (!e) return;
+
+    const acceso = calcularEstadoAcceso(e);
+    const ahora = new Date();
+    const base = (acceso.vencimiento && acceso.vencimiento.getTime() > ahora.getTime()) ? acceso.vencimiento : ahora;
+    const nuevoVencimiento = sumarUnMes(base);
+
+    const ok = await confirmarAccion(
+        `${e.nombre_tienda || 'La tienda'} va a quedar al día hasta el ${nuevoVencimiento.toLocaleDateString('es-AR')}.`,
+        { titulo: 'Asignar 1 mes pagado', textoConfirmar: 'Asignar mes', peligro: false }
+    );
+    if (!ok) return;
+
+    const { error } = await supabase.from('emprendedores')
+        .update({
+            suscripcion_estado: 'authorized',
+            fecha_vencimiento_suscripcion: nuevoVencimiento.toISOString(),
+        })
+        .eq('id', id);
+    if (error) { mostrarToast('No se pudo asignar el mes.', 'error'); console.error(error); return; }
+
+    cerrarModalDetalleEmprendedor();
+    mostrarToast(`Mes asignado. Vence el ${nuevoVencimiento.toLocaleDateString('es-AR')}.`, 'success');
+    await cargarEmprendedores();
 }
 
 async function toggleEmprendedor(id, activoActual) {
