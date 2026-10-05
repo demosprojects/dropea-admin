@@ -793,16 +793,16 @@ function escapeHtml(str) {
 // Arma el link público del producto (perfil del emprendedor con el modal
 // del producto abierto automáticamente) y lo copia al portapapeles.
 function copiarLinkProducto(id) {
-    copiarAlPortapapeles(`${urlPerfilPublico()}?producto=${id}`, 'Link del producto copiado. ¡Ya lo podés compartir!');
+    copiarAlPortapapeles(`${urlPerfilPublico()}&producto=${encodeURIComponent(id)}`, 'Link del producto copiado. ¡Ya lo podés compartir!');
 }
 
-// Arma el link público de la tienda del emprendedor (/tienda/<usuario>).
+// Arma el link público de la tienda del emprendedor (dropea.com.ar/tienda?t=<usuario>).
 // Se usa tanto para "Ir a mi perfil" como para compartir el link de un producto.
 // Usa SITIO_PUBLICO (definido en supabase-client.js) en vez de window.location.origin,
 // porque el dashboard vive en un dominio distinto (Vercel) al del sitio público
 // (Cloudflare), donde realmente está emprendedor.html.
 function urlPerfilPublico() {
-    return `${SITIO_PUBLICO}/tienda/${encodeURIComponent(String(perfilActual.usuario).trim().toLowerCase())}`;
+    return `${SITIO_PUBLICO}/tienda?t=${encodeURIComponent(String(perfilActual.usuario).trim().toLowerCase())}`;
 }
 
 // Copia el link público del perfil (el mismo que abre "Ver perfil") al
