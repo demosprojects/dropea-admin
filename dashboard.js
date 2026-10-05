@@ -1067,6 +1067,23 @@ function renderInicio() {
     document.getElementById('inicio-estado-punto').className = `w-2 h-2 rounded-full ${estado.clasePunto}`;
     document.getElementById('inicio-estado-texto').textContent = estado.texto;
 
+    // ---- Acceso rápido para pagar (solo si la tienda está bloqueada por vencimiento) ----
+    // Si el bloqueo lo puso el admin a mano, pagar no lo resuelve: no se muestra.
+    const cajaPago = document.getElementById('inicio-pago-rapido');
+    if (cajaPago) {
+        const vencidaPorPago = !!acceso.bloqueado && acceso.motivo === 'pago';
+        cajaPago.classList.toggle('hidden', !vencidaPorPago);
+        if (vencidaPorPago) {
+            document.getElementById('inicio-pago-rapido-titulo').textContent = acceso.enPruebaGratis
+                ? 'Tu mes gratis terminó'
+                : 'Tu suscripción venció';
+            const venc = acceso.vencimiento ? ` (venció el ${acceso.vencimiento.toLocaleDateString('es-AR')})` : '';
+            document.getElementById('inicio-pago-rapido-texto').textContent = acceso.enPruebaGratis
+                ? `Tu tienda dejó de mostrarse en Dropea${venc}. Activá tu suscripción para que vuelva a aparecer.`
+                : `Tu tienda dejó de mostrarse en Dropea${venc}. Renová tu suscripción para que vuelva a aparecer.`;
+        }
+    }
+
     // ---- Checklist ----
     document.getElementById('inicio-checklist').classList.toggle('hidden', listo);
     const mostrarListo = listo && !acceso.bloqueado;
@@ -2585,11 +2602,13 @@ function renderCategoriasTienda() {
     };
 
     arbol.forEach(({ c, depth, hermanos }) => {
-        const fila = mk('div', 'flex items-center gap-2 py-2.5 pr-2 sm:pr-3');
-        fila.style.paddingLeft = `calc(0.75rem + ${depth * 1.5}rem)`;
+        // En mobile la fila se parte en dos renglones (nombre completo arriba; cantidad y
+        // acciones abajo) para que el nombre no se corte. Desde sm va todo en una sola línea.
+        const fila = mk('div', 'cat-fila flex flex-wrap sm:flex-nowrap items-center gap-x-2 gap-y-1.5 py-3 sm:py-2.5 pr-2 sm:pr-3');
+        fila.style.setProperty('--nivel', String(depth));
 
         if (categoriaTiendaEditandoId === c.id) {
-            const input = mk('input', 'flex-1 min-w-0 bg-white border border-obsidian rounded-lg px-3 py-2 text-sm font-semibold outline-none ring-4 ring-yellow-400/20');
+            const input = mk('input', 'basis-full sm:basis-0 sm:flex-1 min-w-0 bg-white border border-obsidian rounded-lg px-3 py-2.5 sm:py-2 text-base sm:text-sm font-semibold outline-none ring-4 ring-yellow-400/20');
             input.type = 'text';
             input.maxLength = 40;
             input.value = c.nombre;
@@ -2597,10 +2616,10 @@ function renderCategoriasTienda() {
                 if (ev.key === 'Enter') { ev.preventDefault(); guardarNombreCategoriaTienda(c.id, input.value); }
                 if (ev.key === 'Escape') { categoriaTiendaEditandoId = null; renderCategoriasTienda(); }
             };
-            const ok = mk('button', 'px-3 py-2 rounded-lg bg-obsidian text-white text-xs font-bold hover:bg-yellow-400 hover:text-black transition-colors', 'Guardar');
+            const ok = mk('button', 'flex-1 sm:flex-none px-3 py-2.5 sm:py-2 rounded-lg bg-obsidian text-white text-xs font-bold hover:bg-yellow-400 hover:text-black transition-colors', 'Guardar');
             ok.type = 'button';
             ok.onclick = () => guardarNombreCategoriaTienda(c.id, input.value);
-            const cancel = mk('button', 'px-3 py-2 rounded-lg text-slate-500 text-xs font-bold hover:bg-slate-100 transition-colors', 'Cancelar');
+            const cancel = mk('button', 'flex-1 sm:flex-none px-3 py-2.5 sm:py-2 rounded-lg text-slate-500 text-xs font-bold hover:bg-slate-100 transition-colors', 'Cancelar');
             cancel.type = 'button';
             cancel.onclick = () => { categoriaTiendaEditandoId = null; renderCategoriasTienda(); };
             fila.append(input, ok, cancel);
@@ -2609,11 +2628,14 @@ function renderCategoriasTienda() {
             return;
         }
 
-        if (depth > 0) fila.appendChild(mk('span', 'text-slate-300 font-bold flex-shrink-0', '↳'));
-        const nombre = mk('span', (depth === 0 ? 'font-extrabold text-slate-900' : 'font-bold text-slate-700') + ' text-sm sm:text-[15px] truncate min-w-0');
+        // Nombre: en mobile ocupa todo el ancho y puede ocupar varias líneas; desde sm se corta con "…".
+        const bloqueNombre = mk('div', 'flex items-start sm:items-center gap-1.5 min-w-0 basis-full sm:basis-auto');
+        if (depth > 0) bloqueNombre.appendChild(mk('span', 'text-slate-300 font-bold flex-shrink-0', '↳'));
+        const nombre = mk('span', (depth === 0 ? 'font-extrabold text-slate-900' : 'font-bold text-slate-700') + ' text-[15px] leading-snug break-words min-w-0 sm:truncate');
         nombre.textContent = c.nombre;
         nombre.title = c.nombre;
-        fila.appendChild(nombre);
+        bloqueNombre.appendChild(nombre);
+        fila.appendChild(bloqueNombre);
 
         const n = contarProductosCategoriaTienda(c.id);
         fila.appendChild(mk('span', 'text-[11px] font-bold bg-slate-100 text-slate-500 rounded-full px-2 py-0.5 flex-shrink-0 whitespace-nowrap', `${n} producto${n === 1 ? '' : 's'}`));
