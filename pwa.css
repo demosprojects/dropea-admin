@@ -42,13 +42,13 @@ html.pwa-standalone .pwa-splash {
 .pwa-splash__glow-a {
     top: -7rem;
     left: -7rem;
-    background: rgba(250, 204, 21, .14);
+    background: rgba(250, 204, 21, .20);
 }
 
 .pwa-splash__glow-b {
     bottom: -7rem;
     right: -7rem;
-    background: rgba(250, 204, 21, .07);
+    background: rgba(250, 204, 21, .10);
 }
 
 .pwa-splash__content {
@@ -61,24 +61,46 @@ html.pwa-standalone .pwa-splash {
 }
 
 .pwa-splash__logo {
-    width: 5.5rem;
-    height: 5.5rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    animation: pwaSplashPulse 2s ease-in-out infinite;
+    position: relative;
+    width: min(74vw, 300px);
+    padding: 1.7rem 1.5rem;
+    box-sizing: border-box;
+    border-radius: 34px;
+    overflow: hidden;
+    background: linear-gradient(145deg, #ffe066 0%, #facc15 55%, #eab308 100%);
+    box-shadow:
+        0 0 0 6px rgba(250, 204, 21, .10),
+        0 22px 60px rgba(0, 0, 0, .65),
+        0 0 90px rgba(250, 204, 21, .28);
+    animation: pwaSplashPulse 2.2s ease-in-out infinite;
+}
+
+/* Brillo diagonal que cruza la tarjeta */
+.pwa-splash__logo::after {
+    content: "";
+    position: absolute;
+    top: -20%;
+    bottom: -20%;
+    left: 0;
+    width: 40%;
+    background: linear-gradient(100deg, transparent, rgba(255, 255, 255, .55), transparent);
+    transform: translateX(-160%) skewX(-18deg);
+    animation: pwaSplashShine 2.6s ease-in-out .5s infinite;
+    pointer-events: none;
 }
 
 .pwa-splash__logo svg {
-    width: 5.5rem;
-    height: 5.5rem;
-    color: #facc15;
+    width: 100%;
+    height: auto;
+    color: #000;
 }
 
 .pwa-splash__logo img {
+    display: block;
     width: 100%;
-    height: 100%;
-    object-fit: contain;
+    height: auto;
+    /* El PNG es negro con contorno blanco y fondo transparente:
+       sobre la tarjeta amarilla se lee perfecto, sin invertir colores. */
 }
 
 .pwa-splash__title {
@@ -144,6 +166,11 @@ html.pwa-standalone .pwa-splash {
 @keyframes pwaSplashPulse {
     0%, 100% { transform: scale(1); }
     50% { transform: scale(1.06); }
+}
+
+@keyframes pwaSplashShine {
+    0%, 20% { transform: translateX(-160%) skewX(-18deg); }
+    70%, 100% { transform: translateX(420%) skewX(-18deg); }
 }
 
 @keyframes pwaSplashLoad {
@@ -400,6 +427,14 @@ body.pwa-scroll-lock {
     }
 
     .pwa-update-sheet__icon-dot {
+        animation: none;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .pwa-splash__logo,
+    .pwa-splash__logo::after,
+    .pwa-splash__content {
         animation: none;
     }
 }
