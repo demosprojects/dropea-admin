@@ -108,7 +108,7 @@ const FUENTES_QR = {
 };
 
 let formatoQRActivo = 'poster';
-let paletaQRActiva = 'amarillo';
+let paletaQRActiva = 'azul_noche';
 let fuenteQRActiva = 'jakarta';
 let qrDataUrlCache = null; // el QR es siempre el mismo link, lo generamos una sola vez
 
@@ -301,13 +301,16 @@ function construirTarjetaHTML(formato, { nombre, logoUrl, qr, host, paleta, fuen
                 </div>
 
                 <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:0 24px;">
-                    <div style="color:${sobreAcento}; font-size:34px; font-weight:800; font-style:italic; text-transform:uppercase; line-height:0.98; letter-spacing:-0.02em;">Escaneá el<br>código</div>
+                    <div style="align-self:stretch; color:${sobreAcento}; font-size:34px; font-weight:800; font-style:italic; text-transform:uppercase; line-height:1.02; letter-spacing:-0.02em; text-align:center;">
+                        <div style="white-space:nowrap;">Escaneá el</div>
+                        <div style="white-space:nowrap;">código</div>
+                    </div>
                     <div style="margin-top:10px; background:${NEGRO_DROPEA}; color:${acTexto}; ${oscuro ? 'border:1px solid rgba(255,255,255,0.25);' : ''} border-radius:9999px; padding:7px 16px; font-size:10.5px; font-weight:800; letter-spacing:0.16em; text-transform:uppercase; white-space:nowrap;">Catálogo, precios y pedidos</div>
                 </div>
 
                 <div style="background:${NEGRO_DROPEA}; border-radius:26px 26px 0 0; padding:15px 20px 17px; display:flex; align-items:center; justify-content:center; gap:10px; ${oscuro ? 'border-top:1px solid rgba(255,255,255,0.25);' : ''}">
                     <svg viewBox="0 0 24 24" width="12" height="12" fill="${acTexto}" style="flex-shrink:0;"><path d="M12 0c.6 6.2 5.8 11.4 12 12-6.2.6-11.4 5.8-12 12-.6-6.2-5.8-11.4-12-12C6.2 11.4 11.4 6.2 12 0z"/></svg>
-                    <span style="color:#e4e4e7; font-size:11px; font-weight:800; letter-spacing:0.2em; text-transform:uppercase; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:360px;">${host}</span>
+                    <span style="color:#e4e4e7; font-size:11px; font-weight:800; letter-spacing:0.2em; text-transform:uppercase; white-space:nowrap;">${host}</span>
                     <svg viewBox="0 0 24 24" width="12" height="12" fill="${acTexto}" style="flex-shrink:0;"><path d="M12 0c.6 6.2 5.8 11.4 12 12-6.2.6-11.4 5.8-12 12-.6-6.2-5.8-11.4-12-12C6.2 11.4 11.4 6.2 12 0z"/></svg>
                 </div>
             </div>`;
@@ -372,7 +375,7 @@ function construirTarjetaHTML(formato, { nombre, logoUrl, qr, host, paleta, fuen
 
             <div style="position:relative; z-index:2; width:100%; color:#ffffff; font-size:${tam}px; ${ESTILO_NOMBRE_QR}">${nombreSeguro}</div>
 
-            <div style="position:relative; z-index:2; border:2px solid ${acTexto}; color:${acTexto}; border-radius:9999px; padding:8px 18px; font-size:10.5px; font-weight:800; letter-spacing:0.2em; text-transform:uppercase; white-space:nowrap; max-width:100%; overflow:hidden; text-overflow:ellipsis;">${host}</div>
+            <div style="position:relative; z-index:2; border:2px solid ${acTexto}; color:${acTexto}; border-radius:9999px; padding:8px 18px; font-size:10.5px; font-weight:800; letter-spacing:0.2em; text-transform:uppercase; white-space:nowrap; max-width:100%;">${host}</div>
         </div>`;
 }
 
@@ -619,21 +622,42 @@ async function descargarTarjetaQR() {
     label.textContent = 'Generando…';
 
     try {
-        // Esperamos a que las fuentes estén 100% cargadas antes de rasterizar:
-        // si se captura con una tipografía a medio cargar, html-to-image cae a una
-        // fuente de reemplazo más ancha y el texto puede desbordar y tapar el QR.
-        if (document.fonts && document.fonts.ready) {
+        const nodo = document.getElementById('qr-tarjeta-real');
+
+        // html-to-image copia los tamaños ya calculados en pantalla (ancho de cada
+        // caja) al clon. Si la fuente que se dibuja al exportar es distinta de la que
+        // se ve en pantalla (fuente de reemplazo más ancha), el texto no entra en esas
+        // cajas y se parte/pisa. Por eso primero forzamos la carga real de la fuente
+        // elegida (incluido el peso 800 cursivo de los títulos)...
+        const familia = FUENTES_QR[fuenteQRActiva].family;
+        if (document.fonts && document.fonts.load) {
+            await Promise.all([
+                `italic 800 24px ${familia}`,
+                `800 24px ${familia}`,
+                `400 24px ${familia}`,
+            ].map(f => document.fonts.load(f).catch(() => null)));
             await document.fonts.ready;
         }
 
-        const nodo = document.getElementById('qr-tarjeta-real');
-        // Sacamos el transform de escala del preview: exportamos al tamaño real del diseño.
-        const dataUrl = await htmlToImage.toPng(nodo, {
+        const opciones = {
             pixelRatio: 3,
             backgroundColor: '#ffffff',
             style: { transform: 'none' },
             cacheBust: true,
-        });
+        };
+
+        // ...la incrustamos una sola vez en el SVG de exportación...
+        try {
+            opciones.fontEmbedCSS = await htmlToImage.getFontEmbedCSS(nodo, opciones);
+        } catch (err) {
+            console.warn('No se pudo precalcular el CSS de fuentes:', err);
+        }
+
+        // ...y hacemos una pasada de "calentamiento" descartable: en la primera
+        // rasterización el navegador suele dibujar con la fuente de reemplazo porque
+        // la incrustada todavía se está decodificando; la segunda ya sale correcta.
+        await htmlToImage.toPng(nodo, { ...opciones, pixelRatio: 1 });
+        const dataUrl = await htmlToImage.toPng(nodo, opciones);
 
         const slug = (perfilActual.usuario || 'tienda').toLowerCase().replace(/[^a-z0-9]+/g, '-');
         const nombreArchivo = `${FORMATOS_QR[formatoQRActivo].archivo}-${slug}.png`;
