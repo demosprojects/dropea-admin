@@ -64,7 +64,7 @@
                     '</div>' +
                     '<span class="pwa-update-sheet__icon">' +
                         '<img class="pwa-update-sheet__icon-img" src="favicon-96x96.png" alt="">' +
-                        '<svg class="pwa-update-sheet__icon-fallback" viewBox="0 0 24 24" fill="none" stroke="#facc15" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+                        '<svg class="pwa-update-sheet__icon-fallback" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
                             '<path d="M21 12a9 9 0 1 1-2.64-6.36"></path><polyline points="21 3 21 9 15 9"></polyline>' +
                         '</svg>' +
                         '<span class="pwa-update-sheet__icon-dot"></span>' +
