@@ -162,7 +162,7 @@ function mostrarModalVencimiento(info) {
         // así que no mostramos el botón de pagar en ese caso.
         btnPagar.classList.add('hidden');
     } else {
-        titulo.textContent = info.enPruebaGratis ? 'Tu mes gratis terminó' : 'Tu suscripción venció';
+        titulo.textContent = info.enPruebaGratis ? 'Tu prueba gratis terminó' : 'Tu suscripción venció';
         mensaje.textContent = info.enPruebaGratis
             ? 'Tu tienda dejó de mostrarse en Dropea. Para reactivarla, activá tu suscripción mensual.'
             : 'Tu tienda dejó de mostrarse en Dropea. Para reactivarla, renová tu suscripción mensual.';
@@ -286,7 +286,7 @@ function actualizarBannerBloqueo(emprendedor) {
     // Usamos calcularEstadoAcceso() (la misma función que dispara el modal
     // de vencimiento y que usa admin.js) en vez de mirar sólo "activo".
     // "activo" únicamente se pone en false cuando el admin bloquea a mano;
-    // cuando lo que pasó es que se venció el mes gratis o la suscripción,
+    // cuando lo que pasó es que se venció la prueba gratis o la suscripción,
     // "activo" sigue en true y este banner nunca se enteraba.
     const acceso = calcularEstadoAcceso(emprendedor);
     const titulo = document.getElementById('banner-tienda-bloqueada-titulo');
@@ -301,7 +301,7 @@ function actualizarBannerBloqueo(emprendedor) {
     } else {
         if (titulo) titulo.textContent = 'Tu tienda no se muestra en Dropea';
         motivoEl.textContent = acceso.enPruebaGratis
-            ? 'Terminó tu mes gratis sin activarse la suscripción. Activá el pago para que vuelva a aparecer.'
+            ? 'Terminó tu prueba gratis sin activarse la suscripción. Activá el pago para que vuelva a aparecer.'
             : 'Venció tu suscripción sin renovarse. Renovala para que tu tienda vuelva a aparecer.';
     }
 }
@@ -1075,7 +1075,7 @@ function renderInicio() {
         cajaPago.classList.toggle('hidden', !vencidaPorPago);
         if (vencidaPorPago) {
             document.getElementById('inicio-pago-rapido-titulo').textContent = acceso.enPruebaGratis
-                ? 'Tu mes gratis terminó'
+                ? 'Tu prueba gratis terminó'
                 : 'Tu suscripción venció';
             const venc = acceso.vencimiento ? ` (venció el ${acceso.vencimiento.toLocaleDateString('es-AR')})` : '';
             document.getElementById('inicio-pago-rapido-texto').textContent = acceso.enPruebaGratis
@@ -2117,7 +2117,7 @@ function renderEstadoSuscripcion(data) {
     cargando.classList.add('hidden');
     contenido.classList.remove('hidden');
 
-    // calcularEstadoAcceso() ya sabe distinguir el mes gratis real de lo
+    // calcularEstadoAcceso() ya sabe distinguir la prueba gratis real de lo
     // que diga "suscripcion_estado" en la base (esa columna puede traer
     // 'vencida' u otro valor que no corresponde todavía a una cuenta que
     // nunca generó una suscripción paga en MercadoPago). Usamos el mismo
@@ -2136,7 +2136,7 @@ function renderEstadoSuscripcion(data) {
         ? acceso.vencimiento
         : (data.fecha_vencimiento_suscripcion ? new Date(data.fecha_vencimiento_suscripcion) : null);
 
-    // Días que quedan de mes gratis / margen de membresía (0 si ya venció o no aplica)
+    // Días que quedan de prueba gratis / margen de membresía (0 si ya venció o no aplica)
     const diasRestantesPrueba = ((estado === 'prueba_gratis' || estado === 'membresia_al_dia') && vencimiento)
         ? Math.max(0, Math.ceil((vencimiento.getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
         : 0;
@@ -2145,9 +2145,9 @@ function renderEstadoSuscripcion(data) {
         sin_suscripcion: { texto: 'Todavía no activaste tu suscripción', color: 'bg-slate-100 text-slate-500', badge: 'Sin activar', mostrarBoton: true },
         prueba_gratis: {
             texto: diasRestantesPrueba > 0
-                ? `Estás en tu mes gratis · te ${diasRestantesPrueba === 1 ? 'queda 1 día' : `quedan ${diasRestantesPrueba} días`}`
-                : 'Tu mes gratis ya terminó',
-            color: 'bg-blue-100 text-blue-700', badge: 'Mes gratis', mostrarBoton: true,
+                ? `Estás en tu prueba gratis · te ${diasRestantesPrueba === 1 ? 'queda 1 día' : `quedan ${diasRestantesPrueba} días`}`
+                : 'Tu prueba gratis ya terminó',
+            color: 'bg-blue-100 text-blue-700', badge: 'Prueba gratis', mostrarBoton: true,
         },
         membresia_al_dia: {
             texto: diasRestantesPrueba > 0
@@ -2174,7 +2174,7 @@ function renderEstadoSuscripcion(data) {
     vencimientoEl.textContent = vencimiento
         ? (estado === 'authorized' ? 'Próximo cobro: '
             : estado === 'prueba_gratis'
-                ? (diasRestantesPrueba > 0 ? 'Próximo cobro: ' : 'Tu mes gratis venció el: ')
+                ? (diasRestantesPrueba > 0 ? 'Próximo cobro: ' : 'Tu prueba gratis venció el: ')
             : estado === 'membresia_al_dia'
                 ? (diasRestantesPrueba > 0 ? 'Próximo pago: ' : 'Tu membresía venció el: ')
             : 'Venció el: ') + vencimiento.toLocaleDateString('es-AR')
@@ -2182,14 +2182,14 @@ function renderEstadoSuscripcion(data) {
 
     btnPagar.classList.toggle('hidden', !info.mostrarBoton);
 
-    // Mientras dura el mes gratis, el botón queda visible pero oscurecido
+    // Mientras dura la prueba gratis, el botón queda visible pero oscurecido
     // y sin funcionar: no tiene sentido cobrar antes de que termine el
     // período gratuito. Se reactiva solo (mismo render) apenas
     // diasRestantesPrueba llega a 0.
     const hint = document.getElementById('susc-btn-pagar-hint');
     // Para 'membresia_al_dia' el botón ya está oculto por mostrarBoton, así
     // que este hint (pensado para el botón visible-pero-deshabilitado del
-    // mes gratis de emprendedores) sólo aplica a 'prueba_gratis'.
+    // prueba gratis de emprendedores) sólo aplica a 'prueba_gratis'.
     const enMesGratisVigente = estado === 'prueba_gratis' && diasRestantesPrueba > 0;
 
     btnPagar.disabled = enMesGratisVigente;
@@ -2198,7 +2198,7 @@ function renderEstadoSuscripcion(data) {
     if (hint) {
         hint.classList.toggle('hidden', !enMesGratisVigente);
         hint.textContent = enMesGratisVigente
-            ? `Vas a poder pagar cuando termine tu mes gratis (en ${diasRestantesPrueba === 1 ? '1 día' : diasRestantesPrueba + ' días'}).`
+            ? `Vas a poder pagar cuando termine tu prueba gratis (en ${diasRestantesPrueba === 1 ? '1 día' : diasRestantesPrueba + ' días'}).`
             : '';
     }
 }
