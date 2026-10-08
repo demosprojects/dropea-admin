@@ -109,7 +109,7 @@ async function cargarEmprendedores() {
 //   true  -> activa (visible en /tienda/<usuario>)
 //   false -> bloqueada por el admin
 //   null  -> sin activar (la fila existe pero la tienda pública no la muestra)
-// Además, si está activa pero terminó su mes gratis / su suscripción (misma regla
+// Además, si está activa pero terminó su prueba gratis / su suscripción (misma regla
 // que el panel del emprendedor y la tienda pública), el estado es 'sin_pago'.
 function estadoTienda(e) {
     if (e.activo === true) {
@@ -325,7 +325,7 @@ function abrirModalDetalleEmprendedor(id) {
         motivoWrap.textContent = e.motivo_bloqueo ? `Motivo del bloqueo: ${e.motivo_bloqueo}` : 'Tienda bloqueada.';
         motivoWrap.classList.remove('hidden');
     } else if (estadoDetalle === 'sin_pago') {
-        motivoWrap.textContent = 'La tienda no se muestra al público porque terminó su mes gratis o su suscripción y no pagó. Si ya te pagó por transferencia, tocá \"Asignar 1 mes\".';
+        motivoWrap.textContent = 'La tienda no se muestra al público porque terminó su prueba gratis o su suscripción y no pagó. Si ya te pagó por transferencia, tocá \"Asignar 1 mes\".';
         motivoWrap.classList.remove('hidden');
     } else if (estadoDetalle === 'sin_activar') {
         motivoWrap.textContent = 'Esta tienda todavía no está activada, por eso /tienda/<usuario> no la muestra. Tocá "Activar tienda" para publicarla.';
@@ -402,11 +402,11 @@ function abrirModalDetalleEmprendedor(id) {
         const badgeSusc = document.getElementById('detalle-suscripcion-badge');
         let texto = 'Sin fecha de vencimiento cargada';
         if (acceso.vencimiento) {
-            if (estadoDetalle === 'sin_pago') texto = `${acceso.enPruebaGratis ? 'Su mes gratis terminó' : 'Su suscripción venció'} el ${fechaCorta(acceso.vencimiento)}`;
-            else texto = `${acceso.enPruebaGratis ? 'Mes gratis hasta' : 'Al día hasta'} el ${fechaCorta(acceso.vencimiento)}`;
+            if (estadoDetalle === 'sin_pago') texto = `${acceso.enPruebaGratis ? 'Su prueba gratis terminó' : 'Su suscripción venció'} el ${fechaCorta(acceso.vencimiento)}`;
+            else texto = `${acceso.enPruebaGratis ? 'Prueba gratis hasta' : 'Al día hasta'} el ${fechaCorta(acceso.vencimiento)}`;
         }
         textoSusc.textContent = texto;
-        badgeSusc.textContent = estadoDetalle === 'sin_pago' ? 'Sin pago' : (acceso.enPruebaGratis ? 'Mes gratis' : 'Al día');
+        badgeSusc.textContent = estadoDetalle === 'sin_pago' ? 'Sin pago' : (acceso.enPruebaGratis ? 'Prueba gratis' : 'Al día');
         badgeSusc.className = 'px-3 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wide ' +
             (estadoDetalle === 'sin_pago' ? 'bg-orange-100 text-orange-700' : (acceso.enPruebaGratis ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'));
         document.getElementById('detalle-btn-asignar-mes').onclick = () => asignarMesEmprendedor(e.id);
@@ -434,7 +434,7 @@ function cerrarModalDetalleEmprendedor() {
 }
 
 // Pago por transferencia: suma un mes a la suscripción del emprendedor.
-// Si todavía tiene tiempo vigente (mes gratis o suscripción al día), el mes se
+// Si todavía tiene tiempo vigente (prueba gratis o suscripción al día), el mes se
 // suma a esa fecha; si ya venció, se cuenta desde hoy. Deja la cuenta como
 // "authorized" con la nueva fecha de vencimiento (lo mismo que hace el Worker
 // cuando se aprueba un pago con tarjeta), así el panel del emprendedor y la
