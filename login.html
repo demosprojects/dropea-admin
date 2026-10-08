@@ -11,7 +11,7 @@
         })();
     </script>
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#0b0c10">
+    <meta name="theme-color" content="#070a14">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Dropea">
@@ -26,12 +26,13 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         :root {
-            --ink: #0b0c10;
-            --panel: #0f100b;
-            --yellow: #facc15;
-            --yellow-soft: rgba(250, 204, 21, .34);
-            --text: #f6f6ef;
-            --muted: #a4a496;
+            --ink: #070a14;
+            --panel: #0a0e1a;
+            --accent: #60a5fa;
+            --accent-soft: rgba(96, 165, 250, .34);
+            --brand: #1e40af;
+            --text: #f4f7ff;
+            --muted: #9ca8c0;
             --line: rgba(255, 255, 255, .09);
             --S: clamp(160px, 46vw, 220px);   /* diámetro del anillo orbital */
         }
@@ -54,13 +55,13 @@
             -webkit-font-smoothing: antialiased;
         }
 
-        /* ---------- Fondo: brillo oliva + curvas de nivel ---------- */
+        /* ---------- Fondo: brillo azul + curvas de nivel ---------- */
         .lg-bg { position: fixed; inset: 0; z-index: 0; pointer-events: none;
             background:
-                radial-gradient(60% 55% at 0% 0%, rgba(118, 106, 8, .5), transparent 70%),
-                radial-gradient(55% 50% at 100% 100%, rgba(104, 92, 6, .42), transparent 70%); }
+                radial-gradient(60% 55% at 0% 0%, rgba(30, 64, 175, .55), transparent 70%),
+                radial-gradient(55% 50% at 100% 100%, rgba(29, 78, 216, .40), transparent 70%); }
         .lg-topo { position: absolute; inset: 0; width: 100%; height: 100%; }
-        .lg-topo path { fill: none; stroke: rgba(250, 204, 21, .10); stroke-width: 1; vector-effect: non-scaling-stroke; }
+        .lg-topo path { fill: none; stroke: rgba(96, 165, 250, .10); stroke-width: 1; vector-effect: non-scaling-stroke; }
 
         /* ---------- Marco principal ---------- */
         .lg-frame {
@@ -68,7 +69,7 @@
             width: 100%; max-width: 1080px;
             border-radius: 26px;
             border: 1px solid var(--line);
-            background: linear-gradient(135deg, rgba(250, 204, 21, .11) 0%, rgba(15, 16, 11, .0) 40%), rgba(15, 16, 11, .90);
+            background: linear-gradient(135deg, rgba(96, 165, 250, .11) 0%, rgba(10, 14, 26, .0) 40%), rgba(10, 14, 26, .90);
             -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
             box-shadow: 0 30px 80px rgba(0, 0, 0, .55);
             overflow: hidden;
@@ -76,7 +77,7 @@
         .lg-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 20px 4px; }
         .lg-logo { display: block; height: 26px; width: auto; filter: invert(1); user-select: none; }
         .lg-back { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; font-weight: 600; text-decoration: none; padding: 8px 10px; border-radius: 10px; transition: color .2s, background .2s; }
-        .lg-back:hover { color: var(--yellow); background: rgba(250, 204, 21, .08); }
+        .lg-back:hover { color: var(--accent); background: rgba(96, 165, 250, .08); }
         .lg-back svg { width: 16px; height: 16px; }
 
         .lg-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; padding: 0 20px 26px; }
@@ -90,19 +91,19 @@
         .lg-field { margin-bottom: 16px; }
         .lg-label { display: block; font-size: 13px; font-weight: 600; color: var(--muted); margin: 0 0 7px 4px; }
         .lg-wrap { position: relative; }
-        .lg-ico { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); width: 20px; height: 20px; color: #8a8a7c; pointer-events: none; transition: color .2s; }
-        .lg-wrap:focus-within .lg-ico { color: var(--yellow); }
+        .lg-ico { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); width: 20px; height: 20px; color: #8591ab; pointer-events: none; transition: color .2s; }
+        .lg-wrap:focus-within .lg-ico { color: var(--accent); }
         .lg-input {
             display: block; width: 100%; box-sizing: border-box; height: 54px; padding: 0 50px 0 48px;
-            border-radius: 16px; border: 1.5px solid var(--yellow-soft); background: rgba(255, 255, 255, .035);
+            border-radius: 16px; border: 1.5px solid var(--accent-soft); background: rgba(255, 255, 255, .035);
             color: #fff; font: 600 16px 'Inter', sans-serif; outline: none;
             transition: border-color .2s, background .2s, box-shadow .2s;
         }
-        .lg-input::placeholder { color: #70705f; font-weight: 500; }
-        .lg-input:focus { border-color: var(--yellow); background: rgba(250, 204, 21, .06); box-shadow: 0 0 0 4px rgba(250, 204, 21, .14); }
-        .lg-input:-webkit-autofill { -webkit-text-fill-color: #fff; caret-color: #fff; box-shadow: 0 0 0 1000px #1a1b10 inset; border-color: var(--yellow-soft); }
-        .lg-eye { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 42px; height: 42px; display: grid; place-items: center; border: 0; border-radius: 12px; background: none; color: #8a8a7c; cursor: pointer; transition: color .2s, background .2s; }
-        .lg-eye:hover { color: var(--yellow); background: rgba(250, 204, 21, .08); }
+        .lg-input::placeholder { color: #66728d; font-weight: 500; }
+        .lg-input:focus { border-color: var(--accent); background: rgba(96, 165, 250, .06); box-shadow: 0 0 0 4px rgba(96, 165, 250, .14); }
+        .lg-input:-webkit-autofill { -webkit-text-fill-color: #fff; caret-color: #fff; box-shadow: 0 0 0 1000px #0f1730 inset; border-color: var(--accent-soft); }
+        .lg-eye { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 42px; height: 42px; display: grid; place-items: center; border: 0; border-radius: 12px; background: none; color: #8591ab; cursor: pointer; transition: color .2s, background .2s; }
+        .lg-eye:hover { color: var(--accent); background: rgba(96, 165, 250, .08); }
         .lg-eye svg { width: 20px; height: 20px; }
 
         .lg-error { display: flex; align-items: flex-start; gap: 10px; margin: 0 0 16px; padding: 12px 14px; border-radius: 14px; background: rgba(239, 68, 68, .12); border: 1px solid rgba(239, 68, 68, .38); color: #fecaca; font-size: 13px; font-weight: 600; line-height: 1.4; }
@@ -111,11 +112,11 @@
         .lg-btn {
             width: 100%; height: 56px; border: 0; border-radius: 16px; cursor: pointer;
             display: flex; align-items: center; justify-content: center; gap: 8px;
-            background: var(--yellow); color: #121208; font: 800 16px 'Inter', sans-serif; letter-spacing: .01em;
-            box-shadow: 0 10px 30px rgba(250, 204, 21, .22);
+            background: var(--brand); color: #fff; font: 800 16px 'Inter', sans-serif; letter-spacing: .01em;
+            box-shadow: 0 10px 30px rgba(30, 64, 175, .45);
             transition: transform .15s, background .2s, box-shadow .2s;
         }
-        .lg-btn:hover { background: #ffd93a; box-shadow: 0 12px 36px rgba(250, 204, 21, .32); }
+        .lg-btn:hover { background: #1d4ed8; box-shadow: 0 12px 36px rgba(37, 99, 235, .5); }
         .lg-btn:active { transform: scale(.985); }
         .lg-btn:disabled { cursor: not-allowed; }
 
@@ -126,32 +127,32 @@
         .lg-wa:active { transform: scale(.985); }
         .lg-wa svg { width: 18px; height: 18px; }
         .lg-install-wrap { margin-top: 12px; }
-        .lg-install { width: 100%; height: 48px; display: inline-flex; align-items: center; justify-content: center; gap: 10px; border-radius: 16px; background: transparent; border: 1.5px solid var(--yellow-soft); color: var(--yellow); font: 700 14px 'Inter', sans-serif; cursor: pointer; transition: background .2s, border-color .2s, transform .15s; }
-        .lg-install:hover { background: rgba(250, 204, 21, .09); border-color: var(--yellow); }
+        .lg-install { width: 100%; height: 48px; display: inline-flex; align-items: center; justify-content: center; gap: 10px; border-radius: 16px; background: transparent; border: 1.5px solid var(--accent-soft); color: var(--accent); font: 700 14px 'Inter', sans-serif; cursor: pointer; transition: background .2s, border-color .2s, transform .15s; }
+        .lg-install:hover { background: rgba(96, 165, 250, .09); border-color: var(--accent); }
         .lg-install:active { transform: scale(.985); }
         .lg-install svg { width: 18px; height: 18px; }
 
-        /* ---------- Escenario: disco amarillo + órbita ---------- */
+        /* ---------- Escenario: disco azul + órbita ---------- */
         .lg-show { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 30px 0 34px; }
         .lg-stage { position: relative; width: var(--S); height: var(--S); margin: 0 auto; }
-        .lg-ring { position: absolute; inset: 0; border-radius: 50%; border: 1px dashed rgba(250, 204, 21, .3); }
+        .lg-ring { position: absolute; inset: 0; border-radius: 50%; border: 1px dashed rgba(96, 165, 250, .3); }
         .lg-disc {
             position: absolute; left: 50%; top: 50%; width: 76%; aspect-ratio: 1; border-radius: 50%;
             transform: translate(-50%, -50%);
             display: grid; place-items: center;
-            background: radial-gradient(circle at 30% 24%, #ffe766 0%, #facc15 52%, #e2b400 100%);
-            box-shadow: 0 0 0 10px rgba(250, 204, 21, .08), 0 0 90px rgba(250, 204, 21, .26);
+            background: radial-gradient(circle at 30% 24%, #60a5fa 0%, #1e40af 52%, #1e3a8a 100%);
+            box-shadow: 0 0 0 10px rgba(96, 165, 250, .08), 0 0 90px rgba(96, 165, 250, .26);
             animation: lg-pop .9s cubic-bezier(.2, .8, .2, 1) both;
         }
-        .lg-disc img { width: 68%; height: auto; filter: brightness(0); user-select: none; -webkit-user-drag: none; }
+        .lg-disc img { width: 68%; height: auto; filter: brightness(0) invert(1); user-select: none; -webkit-user-drag: none; }
         .lg-orbit { position: absolute; inset: 0; animation: lg-spin 38s linear infinite, lg-fade .8s .35s ease both; }
         .lg-slot { position: absolute; left: 50%; top: 50%; width: 0; height: 0; transform: rotate(var(--a)) translateY(calc(var(--S) / -2)) rotate(calc(var(--a) * -1)); }
         .lg-chip { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); }
         .lg-chip-in { display: flex; align-items: center; gap: 8px; padding: 5px; border-radius: 999px; white-space: nowrap;
-            background: rgba(16, 17, 11, .92); border: 1px solid var(--yellow-soft); color: var(--text);
+            background: rgba(10, 14, 26, .92); border: 1px solid var(--accent-soft); color: var(--text);
             font-size: 12px; font-weight: 700; box-shadow: 0 6px 20px rgba(0, 0, 0, .45);
             animation: lg-spin 38s linear infinite reverse; }
-        .lg-chip-ico { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: var(--yellow); color: #121208; flex-shrink: 0; }
+        .lg-chip-ico { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: var(--brand); color: #fff; flex-shrink: 0; }
         .lg-chip-ico svg { width: 16px; height: 16px; }
         .lg-chip-txt { display: none; padding-right: 10px; }
 
@@ -164,7 +165,7 @@
         @keyframes lg-pop { from { opacity: 0; transform: translate(-50%, -50%) scale(.86); } to { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
 
         /* ---------- Foco visible ---------- */
-        .lg-btn:focus-visible, .lg-wa:focus-visible, .lg-install:focus-visible, .lg-back:focus-visible, .lg-eye:focus-visible { outline: 3px solid var(--yellow); outline-offset: 3px; }
+        .lg-btn:focus-visible, .lg-wa:focus-visible, .lg-install:focus-visible, .lg-back:focus-visible, .lg-eye:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
 
         /* ---------- Responsive ---------- */
         @media (min-width: 560px) {
@@ -275,8 +276,8 @@
                     <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
                 </svg>
             </button>
-            <div class="w-11 h-11 bg-yellow-400 rounded-xl flex items-center justify-center mb-3 shadow-[0_2px_14px_rgba(250,204,21,0.35)]">
-                <svg class="w-[22px] h-[22px] text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.3">
+            <div class="w-11 h-11 bg-blue-800 rounded-xl flex items-center justify-center mb-3 shadow-[0_2px_14px_rgba(30,64,175,0.35)]">
+                <svg class="w-[22px] h-[22px] text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.3">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007z" />
                 </svg>
             </div>
@@ -305,7 +306,7 @@
                 </li>
             </ol>
             <button type="button" id="modal-instalar-ios-entendido"
-                class="w-full mt-5 bg-black text-white py-3 rounded-xl font-black uppercase text-xs tracking-widest hover:bg-yellow-400 hover:text-black transition-all duration-200 active:scale-[0.98]">
+                class="w-full mt-5 bg-black text-white py-3 rounded-xl font-black uppercase text-xs tracking-widest hover:bg-blue-800 hover:text-white transition-all duration-200 active:scale-[0.98]">
                 Entendido
             </button>
         </div>
@@ -388,7 +389,7 @@
                 </div>
             </section>
 
-            <!-- Escenario: logo sobre disco amarillo con órbita de funciones -->
+            <!-- Escenario: logo sobre disco azul con órbita de funciones -->
             <aside class="lg-show" aria-hidden="true">
                 <div class="lg-stage">
                     <div class="lg-orbit">
