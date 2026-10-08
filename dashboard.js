@@ -428,7 +428,7 @@ function seleccionarReporteTipo(valor, textoVisible) {
 
     document.querySelectorAll('#reporte-tipo-lista li').forEach((li) => {
         const activo = li.dataset.valor === valor;
-        li.classList.toggle('bg-yellow-50', activo);
+        li.classList.toggle('bg-blue-50', activo);
         li.classList.toggle('font-bold', activo);
         li.classList.toggle('text-slate-900', activo);
         li.setAttribute('aria-selected', String(activo));
@@ -458,7 +458,7 @@ function resetearReporteTipoDropdown() {
         textoEl.classList.remove('text-slate-900');
     }
     document.querySelectorAll('#reporte-tipo-lista li').forEach((li) => {
-        li.classList.remove('bg-yellow-50', 'font-bold', 'text-slate-900');
+        li.classList.remove('bg-blue-50', 'font-bold', 'text-slate-900');
         li.setAttribute('aria-selected', 'false');
     });
     toggleReporteTipoDropdown(false);
@@ -534,8 +534,8 @@ function informarPagoWhatsapp() {
 }
 
 const NAV_BASE = "w-full text-left px-5 py-3 rounded-full transition-all duration-150 flex items-center gap-3 group text-[11px] font-black uppercase tracking-widest";
-const NAV_ACTIVO = `${NAV_BASE} bg-white text-black shadow-[4px_4px_0_0_#facc15] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[2px_2px_0_0_#facc15]`;
-const NAV_INACTIVO = `${NAV_BASE} text-zinc-400 hover:text-yellow-400 hover:bg-white/5`;
+const NAV_ACTIVO = `${NAV_BASE} bg-white text-black shadow-[4px_4px_0_0_#60a5fa] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[2px_2px_0_0_#60a5fa]`;
+const NAV_INACTIVO = `${NAV_BASE} text-zinc-400 hover:text-blue-400 hover:bg-white/5`;
 
 function mostrarSeccion(seccionId) {
     const secciones = {
@@ -700,7 +700,7 @@ function pintarGridProductos() {
                 <div class="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center text-2xl">🛍️</div>
                 <p class="text-slate-500 font-bold">Todavía no subiste productos.</p>
                 <p class="text-slate-400 text-sm">Empezá creando tu primer producto para mostrarlo en Dropea y en tu perfil.</p>
-                <button onclick="abrirFormulario()" class="mt-2 inline-flex items-center gap-2 bg-obsidian text-white px-5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider hover:bg-yellow-400 hover:text-black transition-all">
+                <button onclick="abrirFormulario()" class="mt-2 inline-flex items-center gap-2 bg-obsidian text-white px-5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider hover:bg-blue-800 hover:text-white transition-all">
                     + Nuevo Producto
                 </button>
             </div>`;
@@ -734,7 +734,7 @@ function pintarGridProductos() {
     }
 
     grid.innerHTML = productos.map(p => `
-        <div class="group bg-white rounded-xl sm:rounded-2xl border ${p.destacado ? 'border-yellow-400 ring-1 ring-yellow-400/70 shadow-md shadow-yellow-400/10' : 'border-slate-200 hover:border-slate-300'} shadow-sm hover:shadow-lg hover:shadow-slate-900/5 transition-all duration-300 overflow-hidden flex flex-col">
+        <div class="group bg-white rounded-xl sm:rounded-2xl border ${p.destacado ? 'border-blue-800 ring-1 ring-blue-800/70 shadow-md shadow-blue-800/10' : 'border-slate-200 hover:border-slate-300'} shadow-sm hover:shadow-lg hover:shadow-slate-900/5 transition-all duration-300 overflow-hidden flex flex-col">
             <div class="relative aspect-square bg-slate-100 overflow-hidden">
                 <img src="${urlGrillaProducto(p, 560)}" alt="${escapeHtml(p.nombre)}" class="w-full h-full object-contain group-hover:scale-[1.04] transition-transform duration-500" loading="lazy" decoding="async">
                 <span class="absolute top-1.5 left-1.5 sm:top-2.5 sm:left-2.5 xl:top-3 xl:left-3 flex items-center gap-1 text-[8px] sm:text-[10px] xl:text-[11px] font-black uppercase tracking-wider px-1.5 py-0.5 sm:px-2.5 sm:py-1 xl:px-3 xl:py-1.5 rounded-full backdrop-blur-sm ${p.activo ? 'bg-emerald-500/90 text-white' : 'bg-slate-900/75 text-white'}">
@@ -742,13 +742,13 @@ function pintarGridProductos() {
                     ${p.activo ? 'Visible' : 'Sin stock'}
                 </span>
                 <button onclick="${(p.activo || p.destacado) ? `toggleDestacadoProducto('${p.id}', ${!!p.destacado})` : ''}" ${(p.activo || p.destacado) ? '' : 'disabled'} title="${p.activo ? (p.destacado ? 'Quitar de destacados' : 'Marcar como destacado') : (p.destacado ? 'Quitar de destacados' : 'No disponible: sin stock')}"
-                    class="absolute top-1.5 right-1.5 sm:top-2.5 sm:right-2.5 xl:top-3 xl:right-3 w-6 h-6 sm:w-7 sm:h-7 xl:w-9 xl:h-9 rounded-full flex items-center justify-center transition-all backdrop-blur-sm ${p.destacado ? 'bg-yellow-400 text-black shadow-md shadow-yellow-400/50' : (p.activo ? 'bg-black/35 text-white/85 hover:bg-black/55' : 'bg-black/20 text-white/40 cursor-not-allowed')}">
+                    class="absolute top-1.5 right-1.5 sm:top-2.5 sm:right-2.5 xl:top-3 xl:right-3 w-6 h-6 sm:w-7 sm:h-7 xl:w-9 xl:h-9 rounded-full flex items-center justify-center transition-all backdrop-blur-sm ${p.destacado ? 'bg-blue-800 text-white shadow-md shadow-blue-800/50' : (p.activo ? 'bg-black/35 text-white/85 hover:bg-black/55' : 'bg-black/20 text-white/40 cursor-not-allowed')}">
                     <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4 xl:w-5 xl:h-5" viewBox="0 0 24 24" fill="${p.destacado ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="1.8">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M12 3.6l2.47 5.15 5.58.8-4.03 4.03.95 5.72L12 16.5l-5 2.8.95-5.72-4.03-4.03 5.58-.8L12 3.6z"/>
                     </svg>
                 </button>
                 ${p.destacado ? `
-                <span class="absolute bottom-1.5 left-1.5 sm:bottom-2.5 sm:left-2.5 xl:bottom-3 xl:left-3 flex items-center gap-1 text-[8px] sm:text-[10px] font-black uppercase tracking-wider px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-full bg-yellow-400 text-black shadow-sm">
+                <span class="absolute bottom-1.5 left-1.5 sm:bottom-2.5 sm:left-2.5 xl:bottom-3 xl:left-3 flex items-center gap-1 text-[8px] sm:text-[10px] font-black uppercase tracking-wider px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-full bg-blue-800 text-white shadow-sm">
                     <svg class="w-2.5 h-2.5 sm:w-3 sm:h-3" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5l2.6 5.27 5.82.85-4.21 4.1.99 5.8L12 15.8l-5.2 2.72.99-5.8-4.21-4.1 5.82-.85L12 2.5z"/></svg>
                     Destacado
                 </span>` : ''}
@@ -776,7 +776,7 @@ function pintarGridProductos() {
                     <button onclick="copiarLinkProducto('${p.id}')" title="Copiar link para compartir" class="flex-1 h-7 sm:h-8 xl:h-10 rounded-lg xl:rounded-xl bg-slate-50 text-slate-600 hover:bg-sky-500 hover:text-white flex items-center justify-center transition-colors">
                         <svg class="w-3.5 h-3.5 xl:w-[18px] xl:h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244"/></svg>
                     </button>
-                    <button onclick="editarProducto('${p.id}')" title="Editar" class="flex-1 h-7 sm:h-8 xl:h-10 rounded-lg xl:rounded-xl bg-slate-50 text-slate-600 hover:bg-yellow-400 hover:text-black flex items-center justify-center transition-colors">
+                    <button onclick="editarProducto('${p.id}')" title="Editar" class="flex-1 h-7 sm:h-8 xl:h-10 rounded-lg xl:rounded-xl bg-slate-50 text-slate-600 hover:bg-blue-800 hover:text-white flex items-center justify-center transition-colors">
                         <svg class="w-3.5 h-3.5 xl:w-[18px] xl:h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                     </button>
                     <button onclick="eliminarProducto('${p.id}')" title="Eliminar" class="flex-1 h-7 sm:h-8 xl:h-10 rounded-lg xl:rounded-xl bg-slate-50 text-slate-600 hover:bg-red-500 hover:text-white flex items-center justify-center transition-colors">
@@ -829,14 +829,14 @@ function mostrarCopiadoBotonCompartir() {
     if (!btn.dataset.iconoOriginal) btn.dataset.iconoOriginal = icono.innerHTML;
     clearTimeout(timeoutCopiadoPerfil);
 
-    btn.classList.remove('bg-yellow-400', 'hover:bg-yellow-300');
-    btn.classList.add('bg-emerald-400', 'hover:bg-emerald-400');
+    btn.classList.remove('bg-blue-800', 'hover:bg-blue-700');
+    btn.classList.add('bg-emerald-600', 'hover:bg-emerald-600');
     texto.textContent = '¡Copiado! Ya lo podés compartir';
     icono.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.8" d="M5 13l4 4L19 7"/>';
 
     timeoutCopiadoPerfil = setTimeout(() => {
-        btn.classList.remove('bg-emerald-400', 'hover:bg-emerald-400');
-        btn.classList.add('bg-yellow-400', 'hover:bg-yellow-300');
+        btn.classList.remove('bg-emerald-600', 'hover:bg-emerald-600');
+        btn.classList.add('bg-blue-800', 'hover:bg-blue-700');
         texto.textContent = 'Copiar link de mi perfil';
         icono.innerHTML = btn.dataset.iconoOriginal;
     }, 2500);
@@ -1042,7 +1042,7 @@ function renderInicio() {
     spanPunto.className = 'hidden sm:inline';
     spanPunto.textContent = '·';
     const spanFecha = document.createElement('span');
-    spanFecha.className = 'text-yellow-400/70 sm:text-yellow-400';
+    spanFecha.className = 'text-blue-400/70 sm:text-blue-400';
     spanFecha.textContent = fechaCapitalizada;
     saludoTexto.replaceChildren(spanPanel, spanPunto, spanFecha);
     document.getElementById('inicio-titulo').textContent = bienvenida.titulo;
@@ -1060,7 +1060,7 @@ function renderInicio() {
     if (acceso.bloqueado) {
         estado = { texto: 'Tu tienda está bloqueada', clasePill: 'bg-red-500/20 text-red-300', clasePunto: 'bg-red-400' };
     } else if (visibles === 0) {
-        estado = { texto: 'Todavía sin productos visibles', clasePill: 'bg-yellow-400/15 text-yellow-300', clasePunto: 'bg-yellow-400' };
+        estado = { texto: 'Todavía sin productos visibles', clasePill: 'bg-blue-400/15 text-blue-300', clasePunto: 'bg-blue-400' };
     }
     const pill = document.getElementById('inicio-estado');
     pill.className = `self-start inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-wider px-3 py-1.5 rounded-full ${estado.clasePill}`;
@@ -1102,13 +1102,13 @@ function renderInicio() {
         if (!p.opcional) numero++;
         const circulo = p.hecho
             ? 'bg-emerald-500 text-white'
-            : (esSiguiente ? 'bg-yellow-400 text-black' : 'bg-slate-100 text-slate-400');
+            : (esSiguiente ? 'bg-blue-800 text-white' : 'bg-slate-100 text-slate-400');
         const contenidoCirculo = p.hecho ? iconoCheck : (p.opcional ? '+' : numero);
         const btnClase = p.hecho
             ? 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             : (esSiguiente ? 'bg-obsidian text-white hover:bg-black' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50');
         return `
-            <li class="flex items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl sm:rounded-2xl border ${esSiguiente ? 'border-yellow-400 bg-yellow-50/60' : 'border-slate-200 bg-white'}">
+            <li class="flex items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl sm:rounded-2xl border ${esSiguiente ? 'border-blue-800 bg-blue-50/60' : 'border-slate-200 bg-white'}">
                 <span class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-black ${circulo}">${contenidoCirculo}</span>
                 <div class="flex-1 min-w-0">
                     <p class="font-extrabold text-sm text-slate-900 leading-snug">${p.titulo}${p.opcional ? ' <span class="ml-1 align-middle text-[9px] font-black uppercase tracking-wider text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-full">Opcional</span>' : ''}</p>
@@ -2157,12 +2157,12 @@ function renderEstadoSuscripcion(data) {
             badge: diasRestantesPrueba > 0 ? 'Activa' : 'Vencida',
             mostrarBoton: diasRestantesPrueba === 0,
         },
-        pending: { texto: 'Autorización de pago pendiente', color: 'bg-amber-100 text-amber-700', badge: 'Pendiente', mostrarBoton: true },
+        pending: { texto: 'Autorización de pago pendiente', color: 'bg-blue-100 text-blue-800', badge: 'Pendiente', mostrarBoton: true },
         authorized: { texto: 'Suscripción activa', color: 'bg-emerald-100 text-emerald-700', badge: 'Activa', mostrarBoton: false },
         pago_rechazado: { texto: 'El último cobro fue rechazado', color: 'bg-red-100 text-red-700', badge: 'Pago rechazado', mostrarBoton: true },
         vencida: { texto: 'Suscripción vencida', color: 'bg-red-100 text-red-700', badge: 'Vencida', mostrarBoton: true },
         cancelled: { texto: 'Suscripción cancelada', color: 'bg-red-100 text-red-700', badge: 'Cancelada', mostrarBoton: true },
-        paused: { texto: 'Suscripción pausada', color: 'bg-amber-100 text-amber-700', badge: 'Pausada', mostrarBoton: true },
+        paused: { texto: 'Suscripción pausada', color: 'bg-blue-100 text-blue-800', badge: 'Pausada', mostrarBoton: true },
     };
 
     const info = ESTADOS[estado] || ESTADOS.sin_suscripcion;
@@ -2608,7 +2608,7 @@ function renderCategoriasTienda() {
         fila.style.setProperty('--nivel', String(depth));
 
         if (categoriaTiendaEditandoId === c.id) {
-            const input = mk('input', 'basis-full sm:basis-0 sm:flex-1 min-w-0 bg-white border border-obsidian rounded-lg px-3 py-2.5 sm:py-2 text-base sm:text-sm font-semibold outline-none ring-4 ring-yellow-400/20');
+            const input = mk('input', 'basis-full sm:basis-0 sm:flex-1 min-w-0 bg-white border border-obsidian rounded-lg px-3 py-2.5 sm:py-2 text-base sm:text-sm font-semibold outline-none ring-4 ring-blue-500/20');
             input.type = 'text';
             input.maxLength = 40;
             input.value = c.nombre;
@@ -2616,7 +2616,7 @@ function renderCategoriasTienda() {
                 if (ev.key === 'Enter') { ev.preventDefault(); guardarNombreCategoriaTienda(c.id, input.value); }
                 if (ev.key === 'Escape') { categoriaTiendaEditandoId = null; renderCategoriasTienda(); }
             };
-            const ok = mk('button', 'flex-1 sm:flex-none px-3 py-2.5 sm:py-2 rounded-lg bg-obsidian text-white text-xs font-bold hover:bg-yellow-400 hover:text-black transition-colors', 'Guardar');
+            const ok = mk('button', 'flex-1 sm:flex-none px-3 py-2.5 sm:py-2 rounded-lg bg-obsidian text-white text-xs font-bold hover:bg-blue-800 hover:text-white transition-colors', 'Guardar');
             ok.type = 'button';
             ok.onclick = () => guardarNombreCategoriaTienda(c.id, input.value);
             const cancel = mk('button', 'flex-1 sm:flex-none px-3 py-2.5 sm:py-2 rounded-lg text-slate-500 text-xs font-bold hover:bg-slate-100 transition-colors', 'Cancelar');
