@@ -7,6 +7,7 @@
         (function () {
             var esStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
             if (esStandalone) document.documentElement.classList.add('pwa-standalone');
+            try { if (localStorage.getItem('dropea_sidebar_colapsado') === '1') document.documentElement.classList.add('sidebar-colapsado'); } catch (e) {}
         })();
     </script>
     <link rel="manifest" href="manifest.json">
@@ -127,6 +128,64 @@
             [class*="active:scale-"] { transition-duration: 0.01ms !important; }
         }
         
+        /* ============================================================
+           SIDEBAR MOBILE — sin tirón en la primera apertura
+           ------------------------------------------------------------
+           will-change: transform promueve el panel a capa propia desde
+           que carga la página, así el navegador lo rasteriza de entrada
+           y no en el primer frame de la animación. En desktop (>=768px)
+           el sidebar es sticky y no se anima, por eso se desactiva.
+           El overlay pasa de display:none a opacidad/visibility, para
+           que no haya un repintado de pantalla completa en el mismo
+           frame en que arranca el slide. */
+        #sidebar { will-change: transform; }
+        @media (min-width: 768px) {
+            #sidebar { will-change: auto; }
+        }
+        #sidebar-overlay {
+            opacity: 0; visibility: hidden; pointer-events: none;
+            transition: opacity .3s ease, visibility 0s linear .3s;
+        }
+        #sidebar-overlay.abierto {
+            opacity: 1; visibility: visible; pointer-events: auto;
+            transition: opacity .3s ease, visibility 0s linear 0s;
+        }
+        @media (prefers-reduced-motion: reduce) {
+            #sidebar-overlay, #sidebar-overlay.abierto { transition-duration: 0.01ms !important; }
+        }
+
+        /* ============================================================
+           SIDEBAR CONTRAÍBLE (solo desktop >= 768px)
+           ------------------------------------------------------------
+           La clase "sidebar-colapsado" va en <html> (así se aplica antes
+           del primer pintado y no hay parpadeo). Contraído, el menú queda
+           como una barra angosta de íconos. Sin transición de ancho a
+           propósito: animar el width obliga a recalcular el layout de todo
+           el contenido en cada frame. En mobile nada de esto aplica. */
+        @media (min-width: 768px) {
+            html.sidebar-colapsado #sidebar { width: 5rem; padding-left: .75rem; padding-right: .75rem; }
+            html.sidebar-colapsado #sidebar .sb-logo,
+            html.sidebar-colapsado #sidebar .sb-deco,
+            html.sidebar-colapsado #sidebar .sb-cuenta-texto,
+            html.sidebar-colapsado #sidebar .sb-cuenta-flecha,
+            html.sidebar-colapsado #sidebar nav .border-t p { display: none; }
+            html.sidebar-colapsado #sidebar .sb-cuenta { justify-content: center; gap: 0; padding: .25rem 0; border-radius: 9999px; }
+            /* Los títulos de grupo ("1 · Tu tienda"...) pasan a ser una línea divisoria fina */
+            html.sidebar-colapsado #sidebar nav p { font-size: 0; line-height: 0; height: 1px; padding: 0; margin: .75rem .5rem; background: rgba(255,255,255,.1); overflow: hidden; }
+            html.sidebar-colapsado #sidebar nav button,
+            html.sidebar-colapsado #sidebar .sb-footer button { width: 2.75rem; height: 2.75rem; padding: 0; margin-left: auto; margin-right: auto; justify-content: center; gap: 0; }
+            html.sidebar-colapsado #sidebar nav button > span,
+            html.sidebar-colapsado #sidebar .sb-footer button > span { display: none; }
+            #btn-toggle-sidebar svg { transition: transform .2s ease; }
+            html.sidebar-colapsado #btn-toggle-sidebar svg { transform: rotate(180deg); }
+        }
+
+        /* Tarjeta de cuenta = acceso a "Mis datos": se nota que es un botón */
+        #sidebar .sb-cuenta:hover { background: rgba(255,255,255,.08); border-color: rgba(96,165,250,.6); }
+        #sidebar .sb-cuenta:hover .sb-cuenta-flecha { background: #1e40af; transform: translateX(2px); }
+        #sidebar .sb-cuenta.sb-cuenta-activa { background: rgba(96,165,250,.14); border-color: #60a5fa; box-shadow: 4px 4px 0 0 #60a5fa; }
+        #sidebar .sb-cuenta.sb-cuenta-activa .sb-cuenta-flecha { background: #60a5fa; color: #070a14; }
+
         /* Personalización sutil del scrollbar */
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
@@ -815,7 +874,7 @@
         </header>
 
         <!-- OVERLAY MOBILE -->
-        <div id="sidebar-overlay" onclick="cerrarSidebarMobile()" class="hidden fixed inset-0 bg-black/70 z-30 md:hidden"></div>
+        <div id="sidebar-overlay" onclick="cerrarSidebarMobile()" class="fixed inset-0 bg-black/70 z-30 md:hidden"></div>
 
         <!-- SIDEBAR. Mismo lenguaje visual que la web: negro de marca (como el footer),
              destellos de 4 puntas del logo, tipografía en mayúsculas y la "sombra dura"
@@ -824,12 +883,12 @@
              El scroll vive en el wrapper interno, no acá: así el footer de "Cerrar Sesión"
              queda siempre debajo, en vez de que el contenido de arriba (que puede crecer
              con letra grande + pantalla chica) se desborde encima de él. -->
-        <aside id="sidebar" class="fixed md:sticky inset-y-0 left-0 md:top-0 md:h-screen w-72 max-w-[85vw] -translate-x-full md:translate-x-0 transition-transform duration-300 ease-out overflow-hidden bg-zinc-950 text-white p-5 md:p-6 flex flex-col border-r border-white/10 rounded-r-[2rem] z-40 shadow-2xl">
+        <aside id="sidebar" class="fixed md:sticky inset-y-0 left-0 md:top-0 md:h-screen w-72 max-w-[85vw] -translate-x-full md:translate-x-0 transition-transform duration-300 ease-out overflow-hidden bg-zinc-950 text-white p-5 md:p-6 flex flex-col border-r border-white/10 rounded-r-[2rem] z-40 shadow-[8px_0_24px_rgba(0,0,0,.35)]">
 
             <!-- Decoración (no interactiva) -->
             <div class="pointer-events-none absolute -top-24 -right-24 w-64 h-64 rounded-full" style="background: radial-gradient(closest-side, rgba(96, 165, 250, .16), transparent);" aria-hidden="true"></div>
-            <svg class="pointer-events-none absolute top-6 right-16 md:right-7 w-7 h-7 text-blue-400" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 0c.6 6.2 5.8 11.4 12 12-6.2.6-11.4 5.8-12 12-.6-6.2-5.8-11.4-12-12C6.2 11.4 11.4 6.2 12 0z"/></svg>
-            <svg class="pointer-events-none absolute top-[4.25rem] right-24 md:right-16 w-3 h-3 text-white/40" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 0c.6 6.2 5.8 11.4 12 12-6.2.6-11.4 5.8-12 12-.6-6.2-5.8-11.4-12-12C6.2 11.4 11.4 6.2 12 0z"/></svg>
+            <svg class="sb-deco pointer-events-none absolute top-6 right-16 md:right-7 w-7 h-7 text-blue-400" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 0c.6 6.2 5.8 11.4 12 12-6.2.6-11.4 5.8-12 12-.6-6.2-5.8-11.4-12-12C6.2 11.4 11.4 6.2 12 0z"/></svg>
+            <svg class="sb-deco pointer-events-none absolute top-[4.25rem] right-24 md:right-16 w-3 h-3 text-white/40" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 0c.6 6.2 5.8 11.4 12 12-6.2.6-11.4 5.8-12 12-.6-6.2-5.8-11.4-12-12C6.2 11.4 11.4 6.2 12 0z"/></svg>
 
             <button onclick="cerrarSidebarMobile()" aria-label="Cerrar menú" class="md:hidden absolute top-4 right-4 z-20 w-9 h-9 rounded-full bg-white/10 border border-white/15 flex items-center justify-center text-white hover:bg-blue-800 hover:text-white hover:border-blue-800 transition">
                 ✕
@@ -837,12 +896,12 @@
             <div class="sidebar-scroll relative z-10 flex-1 flex flex-col min-h-0 overflow-y-auto overflow-x-hidden -mr-2 pr-2">
                 <!-- Logo. pr-12 en mobile reserva el espacio del botón ✕ (position:absolute),
                      para que con "letra grande" el contenido baje de línea en vez de meterse debajo. -->
-                <div class="mb-6 pr-12 md:pr-0">
+                <div class="sb-logo mb-6 pr-12 md:pr-0">
                     <img src="dropea-logo.png" alt="Dropea" class="h-14 w-auto max-w-full object-contain invert">
                 </div>
 
                 <!-- Tarjeta de cuenta -->
-                <div class="flex items-center gap-3 mb-7 bg-white/[0.04] border border-white/10 p-3 rounded-[1.5rem]">
+                <button type="button" id="nav-perfil" onclick="mostrarSeccion('perfil'); cerrarSidebarMobile()" title="Mis datos" aria-label="Mis datos: editar el perfil de mi tienda" class="sb-cuenta group w-full text-left flex items-center gap-3 mb-7 bg-white/[0.04] border border-white/10 p-3 rounded-[1.5rem] cursor-pointer transition-all duration-150 active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400">
                     <div class="relative flex-shrink-0 p-[3px] bg-white rounded-full">
                         <div id="avatar-sidebar" class="w-10 h-10 rounded-full bg-black text-blue-400 flex items-center justify-center font-black text-base overflow-hidden relative">
                             <img id="avatar-sidebar-img" src="" alt="" class="hidden absolute inset-0 w-full h-full object-cover">
@@ -850,31 +909,26 @@
                         </div>
                         <span class="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-400 border-2 border-zinc-950" title="Sesión activa"></span>
                     </div>
-                    <div class="min-w-0 flex-1">
+                    <div class="sb-cuenta-texto min-w-0 flex-1">
                         <p id="nombre-tienda-sidebar" class="text-white font-black text-sm leading-tight truncate"></p>
                         <p id="usuario-sidebar" class="text-zinc-500 text-[11px] font-bold truncate mt-0.5"></p>
+                    <p class="mt-1.5 flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-blue-400">
+                            <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4" d="M15.232 5.232l3.536 3.536M9 13l6.768-6.768a2.5 2.5 0 113.536 3.536L12.5 16.5 8 18l1-4.5z"/></svg>
+                            <span>Mis datos</span>
+                        </p>
                     </div>
-                </div>
+                    <span class="sb-cuenta-flecha flex-shrink-0 w-7 h-7 rounded-full bg-white/10 text-white flex items-center justify-center transition-all duration-150" aria-hidden="true">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.8" d="M9 5l7 7-7 7"/></svg>
+                    </span>
+                </button>
 
-                <!-- CTA SIEMPRE VISIBLE: compartir el perfil con un clic -->
-                <div class="mb-6">
-                    <button type="button" id="btn-compartir-perfil" onclick="copiarLinkPerfil()" class="w-full flex items-center justify-center gap-2.5 bg-blue-800 text-white px-5 py-3.5 rounded-full font-black text-[11px] uppercase tracking-widest shadow-[4px_4px_0_0_#ffffff] hover:bg-blue-700 active:translate-x-[2px] active:translate-y-[2px] active:shadow-[2px_2px_0_0_#ffffff] transition-all">
-                        <svg id="btn-compartir-perfil-icono" class="w-[18px] h-[18px] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4" d="M8.684 13.342a4 4 0 100 3.316m0-3.316a4 4 0 100-3.316m0 3.316l6.632 3.316m-6.632-6.632l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/></svg>
-                        <span id="btn-compartir-perfil-texto">Copiar link de mi perfil</span>
-                    </button>
-                </div>
-                <!-- Navegación principal: sigue el orden del proceso (tienda -> catálogo -> compartir) -->
+                <!-- Navegación principal: sigue el orden del proceso (catálogo -> compartir; "Mis datos" se abre desde la tarjeta de cuenta) -->
                 <nav class="space-y-2">
                     <button id="nav-inicio" onclick="mostrarSeccion('inicio'); cerrarSidebarMobile()" class="w-full text-left px-5 py-3 rounded-full transition-all duration-150 flex items-center gap-3 group text-[11px] font-black uppercase tracking-widest bg-white text-black shadow-[4px_4px_0_0_#60a5fa] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[2px_2px_0_0_#60a5fa]">
                         <svg class="w-[18px] h-[18px] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
                         <span class="flex-1">Inicio</span>
                     </button>
-                    <p class="px-5 pt-4 mb-2 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-600">1 · Tu tienda</p>
-                    <button id="nav-perfil" onclick="mostrarSeccion('perfil'); cerrarSidebarMobile()" class="w-full text-left px-5 py-3 rounded-full transition-all duration-150 flex items-center gap-3 group text-[11px] font-black uppercase tracking-widest text-zinc-400 hover:text-blue-400 hover:bg-white/5">
-                        <svg class="w-[18px] h-[18px] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14c-4.418 0-8 2.239-8 5v1h16v-1c0-2.761-3.582-5-8-5z"/></svg>
-                        <span class="flex-1">Mis datos</span>
-                    </button>
-                    <p class="px-5 pt-4 mb-2 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-600">2 · Tu catálogo</p>
+                    <p class="px-5 pt-4 mb-2 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-600">1 · Tu catálogo</p>
                     <button id="nav-productos" onclick="mostrarSeccion('productos'); cerrarSidebarMobile()" class="w-full text-left px-5 py-3 rounded-full transition-all duration-150 flex items-center gap-3 group text-[11px] font-black uppercase tracking-widest text-zinc-400 hover:text-blue-400 hover:bg-white/5">
                         <svg class="w-[18px] h-[18px] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
                         <span class="flex-1">Mis productos</span>
@@ -887,7 +941,7 @@
                         <svg class="w-[18px] h-[18px] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"/></svg>
                         <span class="flex-1">Anuncios</span>
                     </button>
-                    <p class="px-5 pt-4 mb-2 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-600">3 · Compartir</p>
+                    <p class="px-5 pt-4 mb-2 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-600">2 · Compartir</p>
                     <button id="nav-qr" onclick="mostrarSeccion('qr'); cerrarSidebarMobile()" class="w-full text-left px-5 py-3 rounded-full transition-all duration-150 flex items-center gap-3 group text-[11px] font-black uppercase tracking-widest text-zinc-400 hover:text-blue-400 hover:bg-white/5">
                         <svg class="w-[18px] h-[18px] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M4 4h6v6H4V4zm10 0h6v6h-6V4zM4 14h6v6H4v-6zm11 0h1.5v1.5H15V14zm3 0h1.5v1.5H18V14zm-3 3h1.5v1.5H15V17zm3 0h1.5v1.5H18V17zm-1.5 3H15v-1.5m4.5 1.5H18v-1.5"/></svg>
                         <span class="flex-1">Compartir y QR</span>
@@ -907,7 +961,11 @@
             </div>
 
             <!-- Footer Sidebar / Cerrar Sesión (siempre visible) -->
-            <div class="relative z-10 pt-5 border-t border-white/10 mt-5 flex-shrink-0">
+            <div class="sb-footer relative z-10 pt-5 border-t border-white/10 mt-5 flex-shrink-0">
+                <button type="button" id="btn-toggle-sidebar" onclick="toggleSidebarColapsado()" aria-label="Contraer menú" aria-expanded="true" class="hidden md:flex w-full items-center justify-center gap-2 mb-2 rounded-full border-2 border-white/15 text-zinc-400 hover:border-blue-400 hover:text-blue-400 hover:bg-white/5 px-4 py-3 text-[11px] font-black uppercase tracking-widest transition-all active:scale-95">
+                    <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7"/></svg>
+                    <span class="sb-toggle-texto">Contraer menú</span>
+                </button>
                 <button onclick="confirmarCerrarSesion()" class="w-full flex items-center justify-center gap-2 rounded-full border-2 border-white/15 text-zinc-300 hover:border-rose-400 hover:text-rose-400 hover:bg-rose-500/10 px-4 py-3 text-[11px] font-black uppercase tracking-widest transition-all active:scale-95">
                     <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
                     <span>Cerrar Sesión</span>
@@ -2290,14 +2348,50 @@
 
         function abrirSidebarMobile() {
             document.getElementById('sidebar').classList.remove('-translate-x-full');
-            document.getElementById('sidebar-overlay').classList.remove('hidden');
+            document.getElementById('sidebar-overlay').classList.add('abierto');
             document.body.classList.add('overflow-hidden');
         }
         function cerrarSidebarMobile() {
             document.getElementById('sidebar').classList.add('-translate-x-full');
-            document.getElementById('sidebar-overlay').classList.add('hidden');
+            document.getElementById('sidebar-overlay').classList.remove('abierto');
             document.body.classList.remove('overflow-hidden');
         }
+        // Contraer / expandir el menú lateral en desktop. La preferencia queda
+        // guardada en este navegador (la clase en <html> se restaura en el <head>).
+        function aplicarSidebarColapsado(colapsado, persistir) {
+            document.documentElement.classList.toggle('sidebar-colapsado', colapsado);
+            const toggle = document.getElementById('btn-toggle-sidebar');
+            if (toggle) {
+                const texto = colapsado ? 'Expandir menú' : 'Contraer menú';
+                toggle.setAttribute('aria-label', texto);
+                toggle.setAttribute('aria-expanded', String(!colapsado));
+                const t = toggle.querySelector('.sb-toggle-texto');
+                if (t) t.textContent = texto;
+            }
+            // Con el menú contraído solo se ven íconos: el nombre queda como tooltip.
+            document.querySelectorAll('#sidebar nav button, #sidebar .sb-footer button').forEach((b) => {
+                const label = (b.querySelector('span') || {}).textContent;
+                if (colapsado && label) b.setAttribute('title', label.trim());
+                else b.removeAttribute('title');
+            });
+            if (persistir) {
+                try { localStorage.setItem('dropea_sidebar_colapsado', colapsado ? '1' : '0'); } catch (e) {}
+                // El contenido cambia de ancho: reajustamos los textareas auto-ajustables.
+                if (typeof ajustarTextareasAutogrow === 'function') ajustarTextareasAutogrow();
+            }
+        }
+        function toggleSidebarColapsado() {
+            aplicarSidebarColapsado(!document.documentElement.classList.contains('sidebar-colapsado'), true);
+        }
+        aplicarSidebarColapsado(document.documentElement.classList.contains('sidebar-colapsado'), false);
+
+        // Precalienta (decodifica) las imágenes del sidebar al cargar, para que
+        // no se decodifiquen/pinten por primera vez justo al abrir el menú.
+        window.addEventListener('load', () => {
+            document.querySelectorAll('#sidebar img').forEach(img => {
+                if (img.decode) img.decode().catch(() => {});
+            });
+        });
         // Si se agranda la ventana a desktop, aseguramos que quede todo limpio
         window.addEventListener('resize', () => {
             if (window.innerWidth >= 768) cerrarSidebarMobile();
