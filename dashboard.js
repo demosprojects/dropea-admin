@@ -9,6 +9,11 @@ let productoEditandoId = null; // null = creando, uuid = editando
 let imagenThumbUrlActual = '';
 let variantesEnEdicion = [];   // [{id?, nombre, valor, precio_adicional, _borrar?}]
 let variantesEliminadas = [];  // ids de variantes existentes que se quitaron y hay que borrar en Supabase al guardar
+// Fotos de variantes: las subidas en esta sesión sin guardar todavía (url -> thumb) se borran
+// del storage si se descartan; las que ya estaban guardadas en la base y se reemplazan/quitan
+// recién se borran al guardar (si cancelan el formulario, tienen que seguir existiendo).
+const imagenesVarianteNuevas = new Map();
+let imagenesVarianteParaBorrar = [];  // [{ url, thumb }]
 let mediosPagoPerfilSeleccion = [];   // ids seleccionados en "Mi Perfil"
 let mediosPagoProductoSeleccion = []; // ids seleccionados en el modal de producto
 let productosCache = [];      // último listado de productos traído de Supabase
@@ -1248,6 +1253,8 @@ function abrirFormulario() {
     imagenThumbUrlActual = '';
     variantesEnEdicion = [];
     variantesEliminadas = [];
+    imagenesVarianteNuevas.clear();
+    imagenesVarianteParaBorrar = [];
     mediosPagoProductoSeleccion = [];
     document.getElementById('titulo-modal').textContent = 'Nuevo producto';
     form.reset();
@@ -1316,6 +1323,10 @@ document.getElementById('cuerpo-modal-producto').addEventListener('focusin', (e)
 });
 
 function cerrarFormulario() {
+    // Fotos de variantes subidas en esta sesión que nunca se guardaron: no dejamos archivos huérfanos
+    imagenesVarianteNuevas.forEach((thumb, url) => borrarImagenSilencioso(url, thumb));
+    imagenesVarianteNuevas.clear();
+    imagenesVarianteParaBorrar = [];
     modal.classList.remove('open');
     modal.style.top = '';
     form.reset();
@@ -1351,6 +1362,7 @@ async function manejarSeleccionImagenProducto(event) {
         document.getElementById('imagen').value = url;
         imagenThumbUrlActual = thumbUrl || '';
         actualizarPreviewImagenProducto(url);
+        renderVariantes();   // las variantes que usan la foto del producto la muestran actualizada
         // Si estábamos reemplazando una foto subida por este mismo sistema, borramos la
         // vieja (nunca la default, que es compartida por todos los productos sin foto)
         if (urlAnterior && urlAnterior !== IMAGEN_PRODUCTO_DEFAULT) borrarImagenProductoSupabase(urlAnterior, thumbAnterior);
@@ -1377,6 +1389,8 @@ async function editarProducto(id) {
     productoEditandoId = id;
     variantesEnEdicion = (vs || []).map(v => ({ ...v }));
     variantesEliminadas = [];
+    imagenesVarianteNuevas.clear();
+    imagenesVarianteParaBorrar = [];
     mediosPagoProductoSeleccion = p.medios_pago || [];
 
     document.getElementById('titulo-modal').textContent = 'Editar producto';
@@ -1440,6 +1454,9 @@ function quitarImagenProducto() {
     document.getElementById('imagen').value = '';
     imagenThumbUrlActual = '';
     actualizarPreviewImagenProducto('');
+    // Sin foto de producto, ninguna variante puede seguir "usándola"
+    variantesEnEdicion.forEach(v => { v.usa_foto_producto = false; });
+    renderVariantes();
     if (urlAnterior && urlAnterior !== IMAGEN_PRODUCTO_DEFAULT) borrarImagenProductoSupabase(urlAnterior, thumbAnterior);
 }
 
@@ -1447,8 +1464,23 @@ function quitarImagenProducto() {
 // VARIANTES (edición en memoria, se guardan al submit)
 // ============================================================
 function agregarFilaVariante() {
-    variantesEnEdicion.push({ nombre: '', valor: '', precio_adicional: 0, disponible: true });
+    variantesEnEdicion.push({ nombre: '', valor: '', precio_adicional: 0, disponible: true, imagen_url: null, imagen_thumb_url: null, usa_foto_producto: false });
     renderVariantes();
+
+    // Feedback visual: llevamos al usuario hasta la variante recién creada,
+    // la resaltamos un instante y dejamos el cursor en el primer campo.
+    const filas = listaVariantes.querySelectorAll('.variant-row');
+    const nueva = filas[filas.length - 1];
+    if (!nueva) return;
+
+    // Esperamos a que el navegador pinte la fila nueva antes de scrollear.
+    requestAnimationFrame(() => {
+        nueva.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        nueva.classList.add('variant-row-nueva');
+        nueva.addEventListener('animationend', () => nueva.classList.remove('variant-row-nueva'), { once: true });
+        // preventScroll: el scroll ya lo maneja scrollIntoView (y el handler de focusin al abrir el teclado).
+        nueva.querySelector('input[type="text"]')?.focus({ preventScroll: true });
+    });
 }
 
 function quitarFilaVariante(idx) {
@@ -1457,7 +1489,100 @@ function quitarFilaVariante(idx) {
     // de la base al guardar; si es una fila nueva sin guardar, con sacarla
     // del array en memoria alcanza.
     if (v?.id) variantesEliminadas.push(v.id);
+    if (v) liberarFotoVariante(v);
     variantesEnEdicion.splice(idx, 1);
+    renderVariantes();
+}
+
+// ------------------------------------------------------------
+// FOTO DE LA VARIANTE (reutiliza la misma subida que la foto del producto)
+// ------------------------------------------------------------
+// Borra un archivo del storage sin molestar al usuario si falla.
+function borrarImagenSilencioso(url, thumb) {
+    if (!url || url === IMAGEN_PRODUCTO_DEFAULT) return;
+    Promise.resolve()
+        .then(() => borrarImagenProductoSupabase(url, thumb || ''))
+        .catch(err => console.error('No se pudo borrar la foto de la variante:', err));
+}
+
+// Se llama cuando una variante deja de usar su foto actual (la reemplazan, la quitan o
+// borran la variante). Si la foto se subió en esta sesión no está en la base: se borra ya.
+// Si ya estaba guardada, se borra recién cuando se guarde el formulario.
+function liberarFotoVariante(v) {
+    const url = v?.imagen_url;
+    if (!url) return;
+    const thumb = v.imagen_thumb_url || '';
+    if (imagenesVarianteNuevas.has(url)) {
+        imagenesVarianteNuevas.delete(url);
+        borrarImagenSilencioso(url, thumb);
+    } else {
+        imagenesVarianteParaBorrar.push({ url, thumb });
+    }
+}
+
+async function manejarFotoVariante(idx, event) {
+    const input = event.target;
+    const file = input.files[0];
+    const v = variantesEnEdicion[idx];
+    if (!file || !v) return;
+
+    const errorValidacion = validarImagenSeleccionada(file);
+    if (errorValidacion) {
+        mostrarToast(errorValidacion, 'error');
+        input.value = '';
+        return;
+    }
+
+    v._subiendoFoto = true;
+    renderVariantes();
+    try {
+        const { url, thumbUrl } = await subirImagenProductoSupabase(file, perfilActual.id);
+        // Si mientras subía quitaron la variante o cerraron el formulario, la foto queda huérfana
+        if (!variantesEnEdicion.includes(v)) {
+            borrarImagenSilencioso(url, thumbUrl);
+            return;
+        }
+        liberarFotoVariante(v);           // la foto anterior (si había)
+        v.imagen_url = url;
+        v.imagen_thumb_url = thumbUrl || null;
+        imagenesVarianteNuevas.set(url, thumbUrl || '');
+    } catch (err) {
+        console.error(err);
+        mostrarToast('No se pudo subir la foto. Probá de nuevo.', 'error');
+    } finally {
+        v._subiendoFoto = false;
+        if (variantesEnEdicion.includes(v)) renderVariantes();
+    }
+}
+
+// Foto propia del producto (null si todavía no subió ninguna: la genérica no cuenta)
+function fotoProductoParaVariantes() {
+    const url = document.getElementById('imagen').value.trim();
+    if (!url || url === IMAGEN_PRODUCTO_DEFAULT) return null;
+    return { url, thumb: imagenThumbUrlActual || '' };
+}
+
+// "Usar la foto del producto": la variante no sube ni guarda ningún archivo, solo apunta a la
+// foto del producto. Así no se duplica nada en el storage y, si cambian la foto del producto,
+// la variante la sigue automáticamente.
+function alternarFotoProductoVariante(idx) {
+    const v = variantesEnEdicion[idx];
+    if (!v) return;
+    v.usa_foto_producto = !v.usa_foto_producto && !!fotoProductoParaVariantes();
+    renderVariantes();
+}
+
+function quitarFotoVariante(idx) {
+    const v = variantesEnEdicion[idx];
+    if (!v) return;
+    if (v.usa_foto_producto) {            // solo desmarca: no hay archivo propio que borrar
+        v.usa_foto_producto = false;
+        renderVariantes();
+        return;
+    }
+    liberarFotoVariante(v);
+    v.imagen_url = null;
+    v.imagen_thumb_url = null;
     renderVariantes();
 }
 
@@ -1520,10 +1645,47 @@ function renderVariantes() {
             <span></span>
         </div>`;
 
+    const iconoCamara = '<svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8.5A1.5 1.5 0 0 1 4.5 7h2.2l1.1-1.7a1.5 1.5 0 0 1 1.25-.7h5.9c.5 0 .97.26 1.25.7L17.3 7h2.2A1.5 1.5 0 0 1 21 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5v-9z"/><circle cx="12" cy="13" r="3.2"/></svg>';
+
     listaVariantes.innerHTML = encabezado + variantesEnEdicion.map((v, idx) => {
         const sinStock = v.disponible === false;
+        const fotoProd = fotoProductoParaVariantes();
+        const usaProd = !!v.usa_foto_producto && !!fotoProd;
+        const propiaSrc = v.imagen_url ? escapeHtml(miniaturaCloudinary(v.imagen_thumb_url || v.imagen_url, 160)) : '';
+        const subiendo = !!v._subiendoFoto;
+        // Mostramos la opción de usar la foto del producto si el producto tiene foto propia
+        // y la variante todavía no subió la suya (o ya la está usando)
+        const mostrarUsar = !!fotoProd && (usaProd || (!propiaSrc && !subiendo));
+        let celdaFoto;
+        if (usaProd) {
+            const src = escapeHtml(miniaturaCloudinary(fotoProd.thumb || fotoProd.url, 160));
+            celdaFoto = `
+            <div class="variant-cell variant-cell-foto">
+                <div class="variant-foto tiene" style="cursor:default" title="Usa la foto del producto">
+                    <img src="${src}" alt="Foto del producto">
+                    <span class="variant-foto-badge">Producto</span>
+                </div>
+                <button type="button" class="variant-foto-quitar" onclick="quitarFotoVariante(${idx})" aria-label="Dejar de usar la foto del producto" title="Dejar de usar la foto del producto">✕</button>
+            </div>`;
+        } else {
+            const contenidoFoto = (propiaSrc ? `<img src="${propiaSrc}" alt="Foto de la variante">` : `${iconoCamara}<span>Foto</span>`)
+                + (subiendo ? '<div class="variant-foto-spinner" aria-hidden="true"></div>' : '');
+            celdaFoto = `
+            <div class="variant-cell variant-cell-foto">
+                ${subiendo
+                    ? `<div class="variant-foto ${propiaSrc ? 'tiene' : ''}" aria-busy="true">${contenidoFoto}</div>`
+                    : `<label class="variant-foto ${propiaSrc ? 'tiene' : ''}" for="variant-foto-${idx}" title="${propiaSrc ? 'Cambiar foto' : 'Agregar foto'}">${contenidoFoto}</label>
+                       <input type="file" id="variant-foto-${idx}" style="display:none" accept="image/jpeg,image/jpg,image/png,image/webp" onchange="manejarFotoVariante(${idx}, event)">`}
+                ${propiaSrc && !subiendo ? `<button type="button" class="variant-foto-quitar" onclick="quitarFotoVariante(${idx})" aria-label="Quitar foto" title="Quitar foto">✕</button>` : ''}
+            </div>`;
+        }
+        const celdaUsar = mostrarUsar ? `
+            <div class="variant-cell variant-cell-usar">
+                <button type="button" class="variant-usar ${usaProd ? 'on' : ''}" aria-pressed="${usaProd}" onclick="alternarFotoProductoVariante(${idx})">${usaProd ? '✓ Usa la foto del producto' : 'Usar la foto del producto'}</button>
+            </div>` : '';
         return `
-        <div class="variant-row ${sinStock ? 'sin-stock' : ''}">
+        <div class="variant-row ${sinStock ? 'sin-stock' : ''} ${mostrarUsar ? 'con-usar' : ''}">
+            ${celdaFoto}
             <div class="variant-cell variant-cell-nombre">
                 <input type="text" placeholder="Qué cambia" value="${escapeHtml(v.nombre)}"
                     oninput="actualizarCampoVariante(${idx}, 'nombre', this.value)">
@@ -1532,6 +1694,7 @@ function renderVariantes() {
                 <input type="text" placeholder="Opción" value="${escapeHtml(v.valor)}"
                     oninput="actualizarCampoVariante(${idx}, 'valor', this.value)">
             </div>
+            ${celdaUsar}
             <div class="variant-cell variant-cell-precio">
                 <input type="text" inputmode="decimal" id="variant-precio-${idx}" placeholder="${formatoPrecioInput(parsearPrecio(document.getElementById('precio')?.value || 0)) || '0'}" value="${formatoPrecioInput(parsearPrecio(v.precio_adicional ?? 0)) === '0' ? '' : formatoPrecioInput(parsearPrecio(v.precio_adicional ?? 0))}"
                     oninput="sanitizarInputPrecio(this); actualizarCampoVariante(${idx}, 'precio_adicional', this.value); actualizarTotalVariante(${idx})"
@@ -1569,6 +1732,11 @@ function actualizarAvisoSinStock() {
 // ============================================================
 form.addEventListener('submit', async (e) => {
     e.preventDefault();
+
+    if (variantesEnEdicion.some(v => v._subiendoFoto)) {
+        mostrarToast('Esperá a que termine de subirse la foto de la variante.', 'error');
+        return;
+    }
 
     // La imagen es opcional: si no subieron ninguna, usamos una foto
     // genérica para que la card del producto no quede vacía/rota.
@@ -1655,25 +1823,37 @@ form.addEventListener('submit', async (e) => {
 
         // Borramos en Supabase las variantes que se quitaron en esta edición
         if (variantesEliminadas.length > 0) {
-            await supabase.from('variantes').delete().in('id', variantesEliminadas);
+            const { error: errBorrar } = await supabase.from('variantes').delete().in('id', variantesEliminadas);
+            if (errBorrar) throw errBorrar;
         }
 
         // Sincronizamos variantes: actualizamos las que tienen id, insertamos las nuevas
         for (const v of variantesEnEdicion) {
             if (!v.nombre?.trim() || !v.valor?.trim()) continue; // salteamos filas vacías
+            const usaFotoProducto = !!v.usa_foto_producto && imagenUrl !== IMAGEN_PRODUCTO_DEFAULT;
             const varPayload = {
                 producto_id: productoId,
                 nombre: v.nombre.trim(),
                 valor: v.valor.trim(),
                 precio_adicional: v.precio_adicional ? parsearPrecio(v.precio_adicional) : 0,
-                disponible: v.disponible !== false
+                disponible: v.disponible !== false,
+                // Si usa la foto del producto no guardamos ningún archivo propio (solo la marca)
+                usa_foto_producto: usaFotoProducto,
+                imagen_url: usaFotoProducto ? null : (v.imagen_url || null),
+                imagen_thumb_url: usaFotoProducto ? null : (v.imagen_thumb_url || null)
             };
-            if (v.id) {
-                await supabase.from('variantes').update(varPayload).eq('id', v.id);
-            } else {
-                await supabase.from('variantes').insert(varPayload);
-            }
+            const { error: errVariante } = v.id
+                ? await supabase.from('variantes').update(varPayload).eq('id', v.id)
+                : await supabase.from('variantes').insert(varPayload);
+            if (errVariante) throw errVariante;
+            // Ya quedó guardada: esa foto deja de ser "provisoria"
+            if (v.imagen_url) imagenesVarianteNuevas.delete(v.imagen_url);
         }
+
+        // Fotos que ya estaban guardadas y se reemplazaron o quitaron: ahora sí las borramos del storage
+        const fotosViejas = imagenesVarianteParaBorrar;
+        imagenesVarianteParaBorrar = [];
+        fotosViejas.forEach(({ url, thumb }) => borrarImagenSilencioso(url, thumb));
 
         cerrarFormulario();
         await renderProductos();
@@ -1713,8 +1893,13 @@ async function eliminarProducto(id) {
     const imagenUrl = producto?.imagen_url;
     const imagenThumbUrl = producto?.imagen_thumb_url;
 
+    // Fotos de sus variantes (se borran con el producto, así que las leemos antes)
+    const { data: fotosVariantes } = await supabase.from('variantes').select('imagen_url, imagen_thumb_url').eq('producto_id', id);
+
     const { error } = await supabase.from('productos').delete().eq('id', id);
     if (error) { mostrarToast('No se pudo eliminar el producto.', 'error'); console.error(error); return; }
+
+    (fotosVariantes || []).forEach(f => borrarImagenSilencioso(f.imagen_url, f.imagen_thumb_url));
 
     // Borramos también la imagen del storage para no dejar archivos huérfanos
     // ocupando espacio. Es silencioso a propósito: si falla, no le suma nada
