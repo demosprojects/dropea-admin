@@ -507,17 +507,75 @@
            evita ese solapamiento. */
         #modal-form .variant-row {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: 72px minmax(0, 1fr) 34px;
             grid-template-areas:
-                "nombre valor"
-                "precio precio"
-                "stock remove";
+                "foto nombre nombre"
+                "foto valor valor"
+                "precio precio precio"
+                "stock stock remove";
             gap: 0.45rem; align-items: center;
             background: var(--mp-surface-2); border: 1px solid var(--mp-border); border-radius: var(--mp-radius-sm);
             padding: 0.55rem; margin-top: 0.5rem; transition: opacity .15s;
         }
         #modal-form .variant-row.sin-stock { opacity: 0.75; }
+        /* Con la opción "Usar la foto del producto" se suma una fila entre nombre/valor y precio */
+        #modal-form .variant-row.con-usar {
+            grid-template-areas:
+                "foto nombre nombre"
+                "foto valor valor"
+                "usar usar usar"
+                "precio precio precio"
+                "stock stock remove";
+        }
+        #modal-form .variant-cell-usar { grid-area: usar; }
+        #modal-form .variant-usar {
+            width: 100%; text-align: left; padding: 0.42rem 0.65rem; border-radius: 8px;
+            border: 1px dashed var(--mp-border-light); background: transparent;
+            color: var(--mp-accent-ink); font-size: 0.7rem; font-weight: 700; cursor: pointer; transition: all .15s;
+        }
+        #modal-form .variant-usar:hover { border-color: var(--mp-accent); background: var(--mp-accent-glow); }
+        #modal-form .variant-usar.on { border-style: solid; background: rgba(22,163,74,0.1); color: #16a34a; border-color: rgba(22,163,74,0.35); }
+        /* Resalte breve de la variante recién agregada */
+        #modal-form .variant-row-nueva { animation: variant-row-flash 1.2s ease-out; }
+        @keyframes variant-row-flash {
+            0%   { border-color: var(--mp-accent); box-shadow: 0 0 0 3px var(--mp-accent-glow); }
+            100% { border-color: var(--mp-border); box-shadow: 0 0 0 0 transparent; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            #modal-form .variant-row-nueva { animation: none; }
+        }
         #modal-form .variant-cell { min-width: 0; }
+        #modal-form .variant-cell-foto { grid-area: foto; position: relative; align-self: stretch; min-height: 72px; }
+        #modal-form .variant-foto {
+            position: absolute; inset: 0; box-sizing: border-box;
+            display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.2rem;
+            border: 1.5px dashed var(--mp-border-light); border-radius: 9px; background: var(--mp-surface);
+            color: var(--mp-text-muted); font-size: 0.62rem; font-weight: 700; letter-spacing: 0.02em;
+            cursor: pointer; overflow: hidden; transition: all .15s;
+        }
+        #modal-form label.variant-foto:hover { border-color: var(--mp-accent); background: var(--mp-accent-glow); color: var(--mp-accent-ink); }
+        #modal-form .variant-foto.tiene { border-style: solid; border-color: var(--mp-border); }
+        #modal-form .variant-foto img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+        #modal-form .variant-foto-quitar {
+            position: absolute; top: 4px; right: 4px; z-index: 2; width: 22px; height: 22px; padding: 0;
+            border: none; border-radius: 50%; background: rgba(9, 9, 11, 0.72); color: #fff;
+            font-size: 0.6rem; line-height: 1; display: flex; align-items: center; justify-content: center; cursor: pointer;
+        }
+        #modal-form .variant-foto-quitar:hover { background: var(--mp-red); }
+        #modal-form .variant-foto-badge {
+            position: absolute; left: 0; right: 0; bottom: 0; padding: 2px 0; text-align: center;
+            background: rgba(9, 9, 11, 0.62); color: #fff; font-size: 0.55rem; font-weight: 700; letter-spacing: 0.03em;
+        }
+        #modal-form .variant-foto-spinner {
+            position: absolute; inset: 0; background: rgba(255, 255, 255, 0.72);
+            display: flex; align-items: center; justify-content: center;
+        }
+        #modal-form .variant-foto-spinner::after {
+            content: ''; width: 20px; height: 20px; border-radius: 50%;
+            border: 2.5px solid rgba(9, 9, 11, 0.15); border-top-color: var(--mp-accent);
+            animation: variant-foto-spin .7s linear infinite;
+        }
+        @keyframes variant-foto-spin { to { transform: rotate(360deg); } }
         #modal-form .variant-cell-nombre { grid-area: nombre; }
         #modal-form .variant-cell-valor { grid-area: valor; }
         #modal-form .variant-cell-precio { grid-area: precio; }
@@ -1160,10 +1218,10 @@
                         <p id="contador-productos" class="text-slate-400 text-xs font-bold uppercase tracking-wider mt-3"></p>
                     </div>
                     <div class="flex flex-wrap items-center gap-2 sm:gap-3 shrink-0">
-                        <button type="button" onclick="abrirInstructivo()"
-                            class="inline-flex items-center justify-center gap-2 bg-white border border-slate-200 text-slate-600 px-3.5 sm:px-5 py-2.5 sm:py-3.5 rounded-xl sm:rounded-2xl font-bold text-xs sm:text-sm hover:border-obsidian hover:text-obsidian transition-all duration-200 active:scale-95">
-                            <span>Instructivo</span>
-                        </button>
+                        <!-- <button type="button" onclick="abrirInstructivo()"
+    class="inline-flex items-center justify-center gap-2 bg-white border border-slate-200 text-slate-600 px-3.5 sm:px-5 py-2.5 sm:py-3.5 rounded-xl sm:rounded-2xl font-bold text-xs sm:text-sm hover:border-obsidian hover:text-obsidian transition-all duration-200 active:scale-95">
+    <span>Instructivo</span>
+</button> -->
                         <button id="btn-nuevo-producto-header" onclick="abrirFormulario()" class="inline-flex items-center justify-center gap-2 bg-obsidian text-white px-4 sm:px-6 py-2.5 sm:py-3.5 rounded-xl sm:rounded-2xl font-bold text-xs sm:text-sm hover:bg-blue-800 hover:text-white transition-all duration-200 shadow-xl shadow-slate-900/10 hover:shadow-blue-800/25 active:scale-95 group">
                             <span class="text-lg leading-none group-hover:rotate-90 transition-transform duration-300">+</span>
                             <span>Nuevo producto</span>
@@ -1952,7 +2010,7 @@
                         <div class="form-section-title" style="margin-bottom: 0;">Variantes</div>
                     </div>
                     <div class="form-section-title-row" style="margin-top: -0.55rem; margin-bottom: 0.6rem;">
-                        <p class="field-hint">Opcional. Sirve para ofrecer distintas opciones del mismo producto, cada una con su propio precio y stock.</p>
+                        <p class="field-hint">Opcional. Sirve para ofrecer distintas opciones del mismo producto, cada una con su propio precio, stock y foto.</p>
                         <button type="button" onclick="agregarFilaVariante()" class="btn btn-ghost btn-sm">+ Agregar</button>
                     </div>
                     <div id="lista-variantes"></div>
