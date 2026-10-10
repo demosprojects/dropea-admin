@@ -22,7 +22,7 @@ const WORKER_SUSCRIPCIONES_URL = 'https://dropeapagos.leonelgalazzoaz.workers.de
 // "Reportar un problema" (sección Ayuda) y los guarda en un Google
 // Sheet. Se obtiene al hacer "Implementar > Nueva implementación > Aplicación
 // web" en el editor de Apps Script (ver instructivo aparte). Termina en /exec.
-const APPS_SCRIPT_REPORTES_URL = 'https://script.google.com/macros/s/AKfycbxWjomMnVyMglBiLzxBRHwhu-q-KfGeBAzOgBHLzdAmPBydpummLjO6MNmknAY51HyW/exec';
+const APPS_SCRIPT_REPORTES_URL = 'https://script.google.com/macros/s/AKfycbxnEhC_ShSE8qkzRTDD-yZg8PZ_XbF0MraoZRuAHgPOF50H7aCNDPKQxRG60amqsT8/exec';
 
 // Filtros activos del buscador de "Mis productos"
 let filtroBusquedaProductos = '';
@@ -562,7 +562,14 @@ function mostrarSeccion(seccionId) {
     Object.keys(secciones).forEach((id) => {
         const activa = id === seccionId;
         secciones[id].classList.toggle('hidden', !activa);
-        navs[id].className = activa ? NAV_ACTIVO : NAV_INACTIVO;
+        // "Mis datos" ya no es un ítem del menú sino la tarjeta de cuenta (tiene su
+        // propio estilo): solo se le marca/desmarca el estado activo.
+        if (id === 'perfil') {
+            navs[id].classList.toggle('sb-cuenta-activa', activa);
+            if (activa) navs[id].setAttribute('aria-current', 'page'); else navs[id].removeAttribute('aria-current');
+        } else {
+            navs[id].className = activa ? NAV_ACTIVO : NAV_INACTIVO;
+        }
     });
 
     if (seccionId === 'inicio') renderInicio();
