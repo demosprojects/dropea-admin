@@ -7,10 +7,11 @@
         (function () {
             var esStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
             if (esStandalone) document.documentElement.classList.add('pwa-standalone');
+            try { if (localStorage.getItem('dropea_sidebar_colapsado') === '1') document.documentElement.classList.add('sidebar-colapsado'); } catch (e) {}
         })();
     </script>
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#0b0c10">
+    <meta name="theme-color" content="#070a14">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Dropea">
@@ -49,6 +50,54 @@
         }
         .animate-fade-in { animation: fadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
         
+        /* ============================================================
+           SIDEBAR MOBILE — sin tirón en la primera apertura (igual que dashboard.html)
+           will-change promueve el panel a capa propia desde que carga; en desktop
+           (>=768px) el sidebar es sticky y no se anima. El overlay usa
+           opacidad/visibility en vez de display:none. */
+        #sidebar { will-change: transform; }
+        @media (min-width: 768px) {
+            #sidebar { will-change: auto; }
+        }
+        #sidebar-overlay {
+            opacity: 0; visibility: hidden; pointer-events: none;
+            transition: opacity .3s ease, visibility 0s linear .3s;
+        }
+        #sidebar-overlay.abierto {
+            opacity: 1; visibility: visible; pointer-events: auto;
+            transition: opacity .3s ease, visibility 0s linear 0s;
+        }
+        @media (prefers-reduced-motion: reduce) {
+            #sidebar-overlay, #sidebar-overlay.abierto { transition-duration: 0.01ms !important; }
+        }
+
+        /* ============================================================
+           SIDEBAR CONTRAÍBLE (solo desktop >= 768px)
+           La clase "sidebar-colapsado" va en <html> (se aplica antes del primer
+           pintado, sin parpadeo) y comparte la clave de localStorage con el
+           dashboard. Contraído queda una barra angosta de íconos. Sin transición
+           de ancho a propósito: animarlo recalcula el layout en cada frame. */
+        @media (min-width: 768px) {
+            html.sidebar-colapsado #sidebar { width: 5rem; padding-left: .75rem; padding-right: .75rem; }
+            html.sidebar-colapsado #sidebar .sb-logo,
+            html.sidebar-colapsado #sidebar .sb-deco,
+            html.sidebar-colapsado #sidebar .sb-cuenta-texto,
+            html.sidebar-colapsado #sidebar nav .border-t p { display: none; }
+            html.sidebar-colapsado #sidebar .sb-cuenta { justify-content: center; gap: 0; padding: .25rem 0; border-radius: 9999px; }
+            /* Los títulos de grupo pasan a ser una línea divisoria fina */
+            html.sidebar-colapsado #sidebar nav p { font-size: 0; line-height: 0; height: 1px; padding: 0; margin: .75rem .5rem; background: rgba(255,255,255,.1); overflow: hidden; }
+            html.sidebar-colapsado #sidebar nav button,
+            html.sidebar-colapsado #sidebar nav a,
+            html.sidebar-colapsado #sidebar .sb-footer button { width: 2.75rem; height: 2.75rem; padding: 0; margin-left: auto; margin-right: auto; justify-content: center; gap: 0; }
+            html.sidebar-colapsado #sidebar nav button > span:not(.sb-badge),
+            html.sidebar-colapsado #sidebar nav a > span,
+            html.sidebar-colapsado #sidebar .sb-footer button > span { display: none; }
+            /* El contador de postulaciones pendientes pasa a ser un puntito sobre el ícono */
+            html.sidebar-colapsado #sidebar .sb-badge { position: absolute; top: -2px; right: -2px; min-width: 1.1rem; text-align: center; box-shadow: 0 0 0 2px #09090b; }
+            #btn-toggle-sidebar svg { transition: transform .2s ease; }
+            html.sidebar-colapsado #btn-toggle-sidebar svg { transform: rotate(180deg); }
+        }
+
         /* Scrollbar suave */
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
@@ -144,7 +193,7 @@
         }
     </style>
 </head>
-<body class="bg-[#f1f5f9] text-slate-900 antialiased min-h-screen selection:bg-yellow-400 selection:text-black">
+<body class="bg-[#f1f5f9] text-slate-900 antialiased min-h-screen selection:bg-blue-800 selection:text-white">
 
     <!-- ===== PWA: splash screen (solo visible con la app instalada) ===== -->
     <div class="pwa-splash" aria-hidden="true">
@@ -171,38 +220,38 @@
         </header>
 
         <!-- OVERLAY MOBILE -->
-        <div id="sidebar-overlay" onclick="cerrarSidebarMobile()" class="hidden fixed inset-0 bg-black/70 z-30 md:hidden"></div>
+        <div id="sidebar-overlay" onclick="cerrarSidebarMobile()" class="fixed inset-0 bg-black/70 z-30 md:hidden"></div>
 
         <!-- SIDEBAR. Mismo diseño que el del panel de emprendedores (dashboard.html): negro de marca,
-             destellos de 4 puntas, tipografía en mayúsculas y "sombra dura" amarilla en el ítem activo.
+             destellos de 4 puntas, tipografía en mayúsculas y "sombra dura" azul en el ítem activo, con menú contraíble en desktop.
              Los ítems activo/inactivo los define NAV_ACTIVO / NAV_INACTIVO en admin.js (mostrarSeccion
              pisa el className). El scroll vive en el wrapper interno, no en el aside: así el footer de
              "Cerrar Sesión" queda siempre visible debajo. -->
-        <aside id="sidebar" class="fixed md:sticky inset-y-0 left-0 md:top-0 md:h-screen w-72 max-w-[85vw] -translate-x-full md:translate-x-0 transition-transform duration-300 ease-out overflow-hidden bg-zinc-950 text-white p-5 md:p-6 flex flex-col border-r border-white/10 rounded-r-[2rem] z-40 shadow-2xl">
+        <aside id="sidebar" class="fixed md:sticky inset-y-0 left-0 md:top-0 md:h-screen w-72 max-w-[85vw] -translate-x-full md:translate-x-0 transition-transform duration-300 ease-out overflow-hidden bg-zinc-950 text-white p-5 md:p-6 flex flex-col border-r border-white/10 rounded-r-[2rem] z-40 shadow-[8px_0_24px_rgba(0,0,0,.35)]">
 
             <!-- Decoración (no interactiva) -->
-            <div class="pointer-events-none absolute -top-24 -right-24 w-64 h-64 rounded-full" style="background: radial-gradient(closest-side, rgba(250,204,21,.16), transparent);" aria-hidden="true"></div>
-            <svg class="pointer-events-none absolute top-6 right-16 md:right-7 w-7 h-7 text-yellow-400" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 0c.6 6.2 5.8 11.4 12 12-6.2.6-11.4 5.8-12 12-.6-6.2-5.8-11.4-12-12C6.2 11.4 11.4 6.2 12 0z"/></svg>
-            <svg class="pointer-events-none absolute top-[4.25rem] right-24 md:right-16 w-3 h-3 text-white/40" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 0c.6 6.2 5.8 11.4 12 12-6.2.6-11.4 5.8-12 12-.6-6.2-5.8-11.4-12-12C6.2 11.4 11.4 6.2 12 0z"/></svg>
+            <div class="pointer-events-none absolute -top-24 -right-24 w-64 h-64 rounded-full" style="background: radial-gradient(closest-side, rgba(96, 165, 250, .16), transparent);" aria-hidden="true"></div>
+            <svg class="sb-deco pointer-events-none absolute top-6 right-16 md:right-7 w-7 h-7 text-blue-400" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 0c.6 6.2 5.8 11.4 12 12-6.2.6-11.4 5.8-12 12-.6-6.2-5.8-11.4-12-12C6.2 11.4 11.4 6.2 12 0z"/></svg>
+            <svg class="sb-deco pointer-events-none absolute top-[4.25rem] right-24 md:right-16 w-3 h-3 text-white/40" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 0c.6 6.2 5.8 11.4 12 12-6.2.6-11.4 5.8-12 12-.6-6.2-5.8-11.4-12-12C6.2 11.4 11.4 6.2 12 0z"/></svg>
 
-            <button onclick="cerrarSidebarMobile()" aria-label="Cerrar menú" class="md:hidden absolute top-4 right-4 z-20 w-9 h-9 rounded-full bg-white/10 border border-white/15 flex items-center justify-center text-white hover:bg-yellow-400 hover:text-black hover:border-yellow-400 transition">
+            <button onclick="cerrarSidebarMobile()" aria-label="Cerrar menú" class="md:hidden absolute top-4 right-4 z-20 w-9 h-9 rounded-full bg-white/10 border border-white/15 flex items-center justify-center text-white hover:bg-blue-800 hover:text-white hover:border-blue-800 transition">
                 ✕
             </button>
             <div class="sidebar-scroll relative z-10 flex-1 flex flex-col min-h-0 overflow-y-auto overflow-x-hidden -mr-2 pr-2">
                 <!-- Logo. pr-12 en mobile reserva el espacio del botón ✕ (position:absolute). -->
-                <div class="mb-6 pr-12 md:pr-0">
+                <div class="sb-logo mb-6 pr-12 md:pr-0">
                     <img src="dropea-logo.png" alt="Dropea" class="h-14 w-auto max-w-full object-contain invert">
                 </div>
 
                 <!-- Tarjeta de cuenta -->
-                <div class="flex items-center gap-3 mb-7 bg-white/[0.04] border border-white/10 p-3 rounded-[1.5rem]">
+                <div class="sb-cuenta flex items-center gap-3 mb-7 bg-white/[0.04] border border-white/10 p-3 rounded-[1.5rem]">
                     <div class="relative flex-shrink-0 p-[3px] bg-white rounded-full">
-                        <div class="w-10 h-10 rounded-full bg-black text-yellow-400 flex items-center justify-center font-black text-base overflow-hidden relative">
+                        <div class="w-10 h-10 rounded-full bg-black text-blue-400 flex items-center justify-center font-black text-base overflow-hidden relative">
                             <span>A</span>
                         </div>
                         <span class="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-400 border-2 border-zinc-950" title="Sesión activa"></span>
                     </div>
-                    <div class="min-w-0 flex-1">
+                    <div class="sb-cuenta-texto min-w-0 flex-1">
                         <p class="text-white font-black text-sm leading-tight truncate">Panel Admin</p>
                         <p class="text-zinc-500 text-[11px] font-bold truncate mt-0.5">Dropea</p>
                     </div>
@@ -211,21 +260,22 @@
                 <!-- Navegación principal -->
                 <nav class="space-y-2">
                     <p class="px-5 mb-2 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-600">Gestión</p>
-                    <button id="nav-emprendedores" onclick="mostrarSeccion('emprendedores'); cerrarSidebarMobile()" class="w-full text-left px-5 py-3 rounded-full transition-all duration-150 flex items-center gap-3 group text-[11px] font-black uppercase tracking-widest bg-white text-black shadow-[4px_4px_0_0_#facc15] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[2px_2px_0_0_#facc15]">
+                    <button id="nav-emprendedores" onclick="mostrarSeccion('emprendedores'); cerrarSidebarMobile()" class="relative w-full text-left px-5 py-3 rounded-full transition-all duration-150 flex items-center gap-3 group text-[11px] font-black uppercase tracking-widest bg-white text-black shadow-[4px_4px_0_0_#60a5fa] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[2px_2px_0_0_#60a5fa]">
                         <svg class="w-[18px] h-[18px] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                         <span class="flex-1">Emprendedores</span>
                     </button>
-                    <button id="nav-productos" onclick="mostrarSeccion('productos'); cerrarSidebarMobile()" class="w-full text-left px-5 py-3 rounded-full transition-all duration-150 flex items-center gap-3 group text-[11px] font-black uppercase tracking-widest text-zinc-400 hover:text-yellow-400 hover:bg-white/5">
+                    <button id="nav-productos" onclick="mostrarSeccion('productos'); cerrarSidebarMobile()" class="relative w-full text-left px-5 py-3 rounded-full transition-all duration-150 flex items-center gap-3 group text-[11px] font-black uppercase tracking-widest text-zinc-400 hover:text-blue-400 hover:bg-white/5">
                         <svg class="w-[18px] h-[18px] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
                         <span class="flex-1">Todos los productos</span>
                     </button>
-                    <button id="nav-postulaciones" onclick="mostrarSeccion('postulaciones'); cerrarSidebarMobile()" class="w-full text-left px-5 py-3 rounded-full transition-all duration-150 flex items-center gap-3 group text-[11px] font-black uppercase tracking-widest text-zinc-400 hover:text-yellow-400 hover:bg-white/5">
+                    <button id="nav-postulaciones" onclick="mostrarSeccion('postulaciones'); cerrarSidebarMobile()" class="relative w-full text-left px-5 py-3 rounded-full transition-all duration-150 flex items-center gap-3 group text-[11px] font-black uppercase tracking-widest text-zinc-400 hover:text-blue-400 hover:bg-white/5">
                         <svg class="w-[18px] h-[18px] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
-                        <span class="flex-1 flex items-center gap-2">Postulación <span id="badge-postulaciones-pendientes" class="hidden text-[10px] font-black bg-yellow-400 text-black rounded-full px-1.5 py-0.5 leading-none"></span></span>
+                        <span class="flex-1">Postulación</span>
+                        <span id="badge-postulaciones-pendientes" class="sb-badge hidden text-[10px] font-black bg-blue-400 text-zinc-950 rounded-full px-1.5 py-0.5 leading-none"></span>
                     </button>
                     <div class="pt-5 mt-5 border-t border-white/10 space-y-2">
                         <p class="px-5 mb-2 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-600">Dropea</p>
-                        <a href="index.html" class="w-full text-left px-5 py-3 rounded-full transition-all duration-150 flex items-center gap-3 group text-[11px] font-black uppercase tracking-widest text-zinc-400 hover:text-yellow-400 hover:bg-white/5">
+                        <a href="index.html" class="relative w-full text-left px-5 py-3 rounded-full transition-all duration-150 flex items-center gap-3 group text-[11px] font-black uppercase tracking-widest text-zinc-400 hover:text-blue-400 hover:bg-white/5">
                             <svg class="w-[18px] h-[18px] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
                             <span class="flex-1">Ir a Dropea</span>
                         </a>
@@ -234,7 +284,11 @@
             </div>
 
             <!-- Footer Sidebar / Cerrar Sesión (siempre visible) -->
-            <div class="relative z-10 pt-5 border-t border-white/10 mt-5 flex-shrink-0">
+            <div class="sb-footer relative z-10 pt-5 border-t border-white/10 mt-5 flex-shrink-0">
+                <button type="button" id="btn-toggle-sidebar" onclick="toggleSidebarColapsado()" aria-label="Contraer menú" aria-expanded="true" class="hidden md:flex w-full items-center justify-center gap-2 mb-2 rounded-full border-2 border-white/15 text-zinc-400 hover:border-blue-400 hover:text-blue-400 hover:bg-white/5 px-4 py-3 text-[11px] font-black uppercase tracking-widest transition-all active:scale-95">
+                    <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7"/></svg>
+                    <span class="sb-toggle-texto">Contraer menú</span>
+                </button>
                 <button onclick="confirmarCerrarSesion()" class="w-full flex items-center justify-center gap-2 rounded-full border-2 border-white/15 text-zinc-300 hover:border-rose-400 hover:text-rose-400 hover:bg-rose-500/10 px-4 py-3 text-[11px] font-black uppercase tracking-widest transition-all active:scale-95">
                     <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
                     <span>Cerrar Sesión</span>
@@ -243,14 +297,14 @@
         </aside>
 
         <!-- CONTENEDOR PRINCIPAL -->
-        <main class="flex-1 p-4 sm:p-6 md:p-12 lg:p-14 max-w-7xl mx-auto w-full min-w-0">
+        <main class="flex-1 p-4 sm:p-6 md:p-8 lg:p-12 xl:p-14 max-w-7xl mx-auto w-full min-w-0">
 
             <!-- SECCIÓN: EMPRENDEDORES -->
             <section id="section-emprendedores" class="animate-fade-in">
                 <header class="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-6 md:mb-10 pb-6 border-b border-slate-200/80">
                     <div>
-                        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-yellow-400/10 border border-yellow-400/20 text-yellow-800 text-xs font-bold uppercase tracking-wider mb-3">
-                            <span class="w-1.5 h-1.5 rounded-full bg-yellow-500"></span>
+                        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-800/10 border border-blue-800/20 text-blue-800 text-xs font-bold uppercase tracking-wider mb-3">
+                            <span class="w-1.5 h-1.5 rounded-full bg-blue-700"></span>
                             Gestión General
                         </div>
                         <h1 class="text-2xl md:text-4xl font-extrabold tracking-tight text-slate-900">
@@ -269,7 +323,7 @@
                         <svg class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z"/></svg>
                         <input id="buscador-emprendedores" type="text" inputmode="search" autocomplete="off"
                             placeholder="Buscar tienda, usuario..."
-                            class="w-full h-11 sm:h-12 pl-10 pr-9 rounded-xl border border-slate-200 bg-white text-sm font-medium text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-yellow-400/60 focus:border-yellow-400 transition-all">
+                            class="w-full h-11 sm:h-12 pl-10 pr-9 rounded-xl border border-slate-200 bg-white text-sm font-medium text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600/40 focus:border-blue-600 transition-all">
                         <button id="btn-limpiar-busqueda" onclick="limpiarBusquedaEmprendedores()"
                             class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition-colors">
                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
@@ -320,8 +374,8 @@
             <section id="section-postulaciones" class="hidden animate-fade-in">
                 <header class="flex flex-col sm:flex-row sm:items-center justify-between gap-6 mb-6 md:mb-10 pb-6 border-b border-slate-200/80">
                     <div>
-                        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-yellow-400/10 border border-yellow-400/20 text-yellow-800 text-xs font-bold uppercase tracking-wider mb-3">
-                            <span class="w-1.5 h-1.5 rounded-full bg-yellow-500"></span>
+                        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-800/10 border border-blue-800/20 text-blue-800 text-xs font-bold uppercase tracking-wider mb-3">
+                            <span class="w-1.5 h-1.5 rounded-full bg-blue-700"></span>
                             Altas nuevas
                         </div>
                         <h1 class="text-2xl md:text-4xl font-extrabold tracking-tight text-slate-900">
@@ -349,7 +403,7 @@
                         <svg class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z"/></svg>
                         <input id="buscador-postulaciones" type="text" inputmode="search" autocomplete="off"
                             placeholder="Buscar postulante..."
-                            class="w-full h-11 sm:h-12 pl-10 pr-9 rounded-xl border border-slate-200 bg-white text-sm font-medium text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-yellow-400/60 focus:border-yellow-400 transition-all">
+                            class="w-full h-11 sm:h-12 pl-10 pr-9 rounded-xl border border-slate-200 bg-white text-sm font-medium text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600/40 focus:border-blue-600 transition-all">
                         <button id="btn-limpiar-busqueda-postulaciones" onclick="limpiarBusquedaPostulaciones()"
                             class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition-colors">
                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
@@ -387,7 +441,7 @@
 
             <div class="mb-4">
                 <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Motivo</label>
-                <select id="bloqueo-motivo-select" class="w-full bg-slate-50/60 border border-slate-200 rounded-xl p-3.5 text-sm font-semibold focus:bg-white focus:border-obsidian focus:ring-4 focus:ring-yellow-400/20 outline-none transition-all">
+                <select id="bloqueo-motivo-select" class="w-full bg-slate-50/60 border border-slate-200 rounded-xl p-3.5 text-sm font-semibold focus:bg-white focus:border-obsidian focus:ring-4 focus:ring-blue-500/20 outline-none transition-all">
                     <option value="Inactividad de la tienda">Inactividad de la tienda</option>
                     <option value="Incumplimiento de las normas de Dropea">Incumplimiento de las normas de Dropea</option>
                     <option value="otro">Otro (especificar abajo)</option>
@@ -396,7 +450,7 @@
 
             <div class="mb-6">
                 <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Detalle adicional (opcional)</label>
-                <textarea id="bloqueo-detalle" rows="3" placeholder="Ej: contactar por WhatsApp para regularizar la situación." class="w-full bg-slate-50/60 border border-slate-200 rounded-xl p-3.5 text-sm font-semibold focus:bg-white focus:border-obsidian focus:ring-4 focus:ring-yellow-400/20 outline-none transition-all resize-none"></textarea>
+                <textarea id="bloqueo-detalle" rows="3" placeholder="Ej: contactar por WhatsApp para regularizar la situación." class="w-full bg-slate-50/60 border border-slate-200 rounded-xl p-3.5 text-sm font-semibold focus:bg-white focus:border-obsidian focus:ring-4 focus:ring-blue-500/20 outline-none transition-all resize-none"></textarea>
             </div>
 
             <div class="flex gap-3 pt-2 border-t border-slate-100">
@@ -435,7 +489,7 @@
                 <div class="flex items-end gap-4">
                     <div class="relative flex-shrink-0">
                         <img id="detalle-avatar" src="" alt="" class="hidden w-24 h-24 rounded-2xl object-cover border-4 border-white shadow-xl bg-white">
-                        <div id="detalle-avatar-inicial" class="w-24 h-24 rounded-2xl bg-gradient-to-tr from-yellow-400 to-amber-300 text-black border-4 border-white shadow-xl flex items-center justify-center text-3xl font-black"></div>
+                        <div id="detalle-avatar-inicial" class="w-24 h-24 rounded-2xl bg-gradient-to-tr from-blue-800 to-blue-500 text-white border-4 border-white shadow-xl flex items-center justify-center text-3xl font-black"></div>
                     </div>
                     <div class="min-w-0 flex-1 pb-1.5">
                         <h2 id="detalle-nombre-tienda" class="text-lg sm:text-xl font-extrabold text-slate-900 leading-tight truncate"></h2>
@@ -509,7 +563,18 @@
                 <!-- Anuncio -->
                 <div id="detalle-anuncio-wrap" class="hidden mt-5">
                     <p class="text-[10px] font-black uppercase text-gray-400 mb-1.5 tracking-widest">Anuncio en tienda</p>
-                    <p id="detalle-anuncio" class="text-sm text-gray-700 bg-yellow-50 border border-yellow-100 rounded-xl p-3.5"></p>
+                    <p id="detalle-anuncio" class="text-sm text-gray-700 bg-blue-50 border border-blue-100 rounded-xl p-3.5"></p>
+                </div>
+
+                <!-- Visibilidad en la página de inicio (sección "Comercios adheridos" de index.html) -->
+                <div class="mt-5">
+                    <p class="text-[10px] font-black uppercase text-gray-400 mb-1.5 tracking-widest">Página de inicio</p>
+                    <div class="bg-gray-50 rounded-xl p-3.5 flex items-center justify-between gap-3 flex-wrap">
+                        <p id="detalle-inicio-texto" class="text-sm font-semibold text-gray-800"></p>
+                        <span id="detalle-inicio-badge" class="px-3 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wide"></span>
+                    </div>
+                    <button type="button" id="detalle-btn-inicio" class="mt-2 w-full inline-flex items-center justify-center gap-2 py-3 rounded-2xl font-black uppercase tracking-widest text-[11px] sm:text-xs transition-all active:scale-95"></button>
+                    <p class="text-[11px] text-gray-400 mt-1.5">Ocultarla solo la saca de «Comercios adheridos» en la página de inicio: la tienda sigue funcionando con su link.</p>
                 </div>
 
                 <!-- Suscripción: vencimiento y asignar mes por transferencia -->
@@ -530,7 +595,7 @@
 
         <!-- Acción fija abajo -->
         <div class="pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:pb-4 px-5 sm:px-8 flex-shrink-0 bg-white/95 backdrop-blur border-t border-gray-100 shadow-[0_-8px_20px_-6px_rgba(0,0,0,0.12)] flex flex-col gap-2">
-            <a id="detalle-btn-ver-tienda" href="#" target="_blank" rel="noopener" class="hidden w-full inline-flex items-center justify-center gap-2 py-3.5 rounded-2xl font-black uppercase tracking-widest text-xs sm:text-sm transition-all active:scale-95 bg-yellow-50 text-yellow-700 hover:bg-yellow-400 hover:text-black">
+            <a id="detalle-btn-ver-tienda" href="#" target="_blank" rel="noopener" class="hidden w-full inline-flex items-center justify-center gap-2 py-3.5 rounded-2xl font-black uppercase tracking-widest text-xs sm:text-sm transition-all active:scale-95 bg-blue-50 text-blue-800 hover:bg-blue-800 hover:text-white">
                 Ver tienda pública
             </a>
             <button type="button" id="detalle-btn-toggle" class="w-full inline-flex items-center justify-center gap-2 py-3.5 rounded-2xl font-black uppercase tracking-widest text-xs sm:text-sm transition-all active:scale-95">
@@ -604,14 +669,41 @@
     <script>
         function abrirSidebarMobile() {
             document.getElementById('sidebar').classList.remove('-translate-x-full');
-            document.getElementById('sidebar-overlay').classList.remove('hidden');
+            document.getElementById('sidebar-overlay').classList.add('abierto');
             document.body.classList.add('overflow-hidden');
         }
         function cerrarSidebarMobile() {
             document.getElementById('sidebar').classList.add('-translate-x-full');
-            document.getElementById('sidebar-overlay').classList.add('hidden');
+            document.getElementById('sidebar-overlay').classList.remove('abierto');
             document.body.classList.remove('overflow-hidden');
         }
+        // Contraer / expandir el menú lateral en desktop. La preferencia queda
+        // guardada en este navegador (la clase en <html> se restaura en el <head>).
+        function aplicarSidebarColapsado(colapsado, persistir) {
+            document.documentElement.classList.toggle('sidebar-colapsado', colapsado);
+            const toggle = document.getElementById('btn-toggle-sidebar');
+            if (toggle) {
+                const texto = colapsado ? 'Expandir menú' : 'Contraer menú';
+                toggle.setAttribute('aria-label', texto);
+                toggle.setAttribute('aria-expanded', String(!colapsado));
+                const t = toggle.querySelector('.sb-toggle-texto');
+                if (t) t.textContent = texto;
+            }
+            // Con el menú contraído solo se ven íconos: el nombre queda como tooltip.
+            document.querySelectorAll('#sidebar nav button, #sidebar nav a, #sidebar .sb-footer button').forEach((b) => {
+                const label = (b.querySelector('span') || {}).textContent;
+                if (colapsado && label) b.setAttribute('title', label.trim());
+                else b.removeAttribute('title');
+            });
+            if (persistir) {
+                try { localStorage.setItem('dropea_sidebar_colapsado', colapsado ? '1' : '0'); } catch (e) {}
+            }
+        }
+        function toggleSidebarColapsado() {
+            aplicarSidebarColapsado(!document.documentElement.classList.contains('sidebar-colapsado'), true);
+        }
+        aplicarSidebarColapsado(document.documentElement.classList.contains('sidebar-colapsado'), false);
+
         // Si se agranda la ventana a desktop, aseguramos que quede todo limpio
         window.addEventListener('resize', () => {
             if (window.innerWidth >= 768) cerrarSidebarMobile();
