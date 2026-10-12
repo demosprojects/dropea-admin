@@ -48,9 +48,9 @@ function iniciarRealtimeAdmin() {
     suscribirTabla('postulaciones', debounce(cargarPostulacionesAdmin, 350));
 }
 
-const NAV_BASE = "w-full text-left px-5 py-3 rounded-full transition-all duration-150 flex items-center gap-3 group text-[11px] font-black uppercase tracking-widest";
-const NAV_ACTIVO = `${NAV_BASE} bg-white text-black shadow-[4px_4px_0_0_#facc15] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[2px_2px_0_0_#facc15]`;
-const NAV_INACTIVO = `${NAV_BASE} text-zinc-400 hover:text-yellow-400 hover:bg-white/5`;
+const NAV_BASE = "relative w-full text-left px-5 py-3 rounded-full transition-all duration-150 flex items-center gap-3 group text-[11px] font-black uppercase tracking-widest";
+const NAV_ACTIVO = `${NAV_BASE} bg-white text-black shadow-[4px_4px_0_0_#60a5fa] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[2px_2px_0_0_#60a5fa]`;
+const NAV_INACTIVO = `${NAV_BASE} text-zinc-400 hover:text-blue-400 hover:bg-white/5`;
 
 function mostrarSeccion(id) {
     const secciones = ['emprendedores', 'productos', 'postulaciones'];
@@ -192,7 +192,7 @@ function tarjetaEmprendedorHTML(e) {
     const inicial = e.nombre_tienda ? e.nombre_tienda.charAt(0).toUpperCase() : '?';
     const avatar = e.logo_url
         ? `<img src="${miniaturaCloudinary(e.logo_url, 600)}" alt="${escapeHtml(e.nombre_tienda)}" class="w-full h-full object-cover" loading="lazy" decoding="async">`
-        : `<div class="emp-inicial w-full h-full flex items-center justify-center bg-gradient-to-tr from-yellow-400 to-amber-300 text-black font-black">${escapeHtml(inicial)}</div>`;
+        : `<div class="emp-inicial w-full h-full flex items-center justify-center bg-gradient-to-tr from-blue-800 to-blue-500 text-white font-black">${escapeHtml(inicial)}</div>`;
 
     // Estado: activa o bloqueada por el admin.
     const estado = estadoTienda(e);
@@ -238,6 +238,7 @@ function tarjetaEmprendedorHTML(e) {
                 <span class="text-xs font-semibold text-slate-400 truncate">@${usuario}</span>
                 <h3 class="font-extrabold text-slate-900 text-base leading-snug line-clamp-2">${nombre}</h3>
                 <p class="flex items-center gap-1.5 min-w-0 text-sm font-medium text-slate-500">${whatsapp}</p>
+                ${e.oculto_en_inicio === true ? '<p class="self-start inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-100 text-slate-500" title="No aparece en Comercios adheridos del inicio">Oculta en inicio</p>' : ''}
             </div>
         </div>
         <div class="emp-actions mt-auto flex flex-col gap-2">
@@ -389,6 +390,20 @@ function abrirModalDetalleEmprendedor(id) {
 
     document.getElementById('detalle-creado').textContent = e.created_at ? `Cuenta creada el ${formatoFecha(e.created_at)}` : '';
 
+    // Visibilidad en la página de inicio (sección "Comercios adheridos")
+    const oculta = e.oculto_en_inicio === true;
+    document.getElementById('detalle-inicio-texto').textContent = oculta
+        ? 'No aparece en «Comercios adheridos»'
+        : 'Aparece en «Comercios adheridos»';
+    const badgeInicio = document.getElementById('detalle-inicio-badge');
+    badgeInicio.textContent = oculta ? 'Oculta' : 'Visible';
+    badgeInicio.className = 'px-3 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wide ' + (oculta ? 'bg-slate-200 text-slate-600' : 'bg-emerald-100 text-emerald-700');
+    const btnInicio = document.getElementById('detalle-btn-inicio');
+    btnInicio.textContent = oculta ? 'Mostrar en la página de inicio' : 'Ocultar de la página de inicio';
+    btnInicio.className = 'mt-2 w-full inline-flex items-center justify-center gap-2 py-3 rounded-2xl font-black uppercase tracking-widest text-[11px] sm:text-xs transition-all active:scale-95 ' +
+        (oculta ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-500 hover:text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-800 hover:text-white');
+    btnInicio.onclick = () => toggleOcultoInicio(e.id, oculta);
+
     // Suscripción: vencimiento y botón para asignar un mes (pago por transferencia).
     // Solo tiene sentido en tiendas activas (al día o sin pago); las bloqueadas
     // o sin activar se manejan primero con "Activar tienda".
@@ -416,7 +431,7 @@ function abrirModalDetalleEmprendedor(id) {
     const btnToggle = document.getElementById('detalle-btn-toggle');
     const activa = e.activo === true;
     btnToggle.textContent = activa ? 'Bloquear tienda' : 'Activar tienda';
-    btnToggle.className = `w-full inline-flex items-center justify-center gap-2 py-3.5 rounded-2xl font-black uppercase tracking-widest text-xs sm:text-sm transition-all active:scale-95 ${activa ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-black text-white hover:bg-yellow-400 hover:text-black'}`;
+    btnToggle.className = `w-full inline-flex items-center justify-center gap-2 py-3.5 rounded-2xl font-black uppercase tracking-widest text-xs sm:text-sm transition-all active:scale-95 ${activa ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-black text-white hover:bg-blue-800 hover:text-white'}`;
     btnToggle.onclick = () => {
         cerrarModalDetalleEmprendedor();
         toggleEmprendedor(e.id, activa);
@@ -474,6 +489,18 @@ async function asignarMesEmprendedor(id) {
 
     cerrarModalDetalleEmprendedor();
     mostrarToast(`Mes asignado. Vence el ${nuevoVencimiento.toLocaleDateString('es-AR')}.`, 'success');
+    await cargarEmprendedores();
+}
+
+// Oculta / muestra la tienda en "Comercios adheridos" de la página de inicio (index.html).
+// No afecta a la tienda pública ni a su estado: solo la columna oculto_en_inicio.
+async function toggleOcultoInicio(id, ocultaActual) {
+    const { error } = await supabase.from('emprendedores')
+        .update({ oculto_en_inicio: !ocultaActual })
+        .eq('id', id);
+    if (error) { mostrarToast('No se pudo actualizar la visibilidad en el inicio.', 'error'); console.error(error); return; }
+    cerrarModalDetalleEmprendedor();
+    mostrarToast(ocultaActual ? 'Ahora aparece en la página de inicio.' : 'Oculta de la página de inicio.', 'success');
     await cargarEmprendedores();
 }
 
@@ -608,7 +635,7 @@ const POSTULACION_TIPO_LABEL = {
     solo_beneficios: 'Beneficios',
 };
 const POSTULACION_TIPO_COLOR = {
-    emprendedor: 'bg-yellow-100 text-yellow-800',
+    emprendedor: 'bg-indigo-100 text-indigo-700',
     comercio_vender: 'bg-blue-100 text-blue-700',
     comercio_membresia: 'bg-purple-100 text-purple-700',
     solo_beneficios: 'bg-pink-100 text-pink-700',
