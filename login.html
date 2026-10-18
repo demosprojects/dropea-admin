@@ -19,12 +19,23 @@
     <link rel="stylesheet" href="pwa.css">
     <title>Ingresar | Dropea</title>
     <link rel="shortcut icon" href="favicon-96x96.png">
-    <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Inter:wght@400;500;600;700;800&display=swap" onload="this.onload=null;this.rel='stylesheet'">
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Inter:wght@400;500;600;700;800&display=swap"></noscript>
+    <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
+        /* ---------- Reset mínimo (reemplaza el preflight de Tailwind) ---------- */
+        *, *::before, *::after { box-sizing: border-box; }
+        html { line-height: 1.5; -webkit-text-size-adjust: 100%; }
+        h1, h2, p, ol { margin: 0; }
+        h1, h2 { font-size: inherit; font-weight: inherit; }
+        ol { list-style: none; padding: 0; }
+        img, svg { display: block; }
+        img { max-width: 100%; height: auto; }
+        button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+        input::placeholder { opacity: 1; }
+
         :root {
             --ink: #070a14;
             --panel: #0a0e1a;
@@ -56,7 +67,7 @@
         }
 
         /* ---------- Fondo: brillo azul + curvas de nivel ---------- */
-        .lg-bg { position: fixed; inset: 0; z-index: 0; pointer-events: none;
+        .lg-bg { position: fixed; inset: 0; z-index: 0; pointer-events: none; contain: strict; will-change: transform;
             background:
                 radial-gradient(60% 55% at 0% 0%, rgba(30, 64, 175, .55), transparent 70%),
                 radial-gradient(55% 50% at 100% 100%, rgba(29, 78, 216, .40), transparent 70%); }
@@ -69,8 +80,7 @@
             width: 100%; max-width: 1080px;
             border-radius: 26px;
             border: 1px solid var(--line);
-            background: linear-gradient(135deg, rgba(96, 165, 250, .11) 0%, rgba(10, 14, 26, .0) 40%), rgba(10, 14, 26, .90);
-            -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+            background: linear-gradient(135deg, rgba(96, 165, 250, .11) 0%, rgba(10, 14, 26, .0) 40%), rgba(10, 14, 26, .94);
             box-shadow: 0 30px 80px rgba(0, 0, 0, .55);
             overflow: hidden;
         }
@@ -134,7 +144,7 @@
 
         /* ---------- Escenario: disco azul + órbita ---------- */
         .lg-show { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 30px 0 34px; }
-        .lg-stage { position: relative; width: var(--S); height: var(--S); margin: 0 auto; }
+        .lg-stage { contain: layout style; position: relative; width: var(--S); height: var(--S); margin: 0 auto; }
         .lg-ring { position: absolute; inset: 0; border-radius: 50%; border: 1px dashed rgba(96, 165, 250, .3); }
         .lg-disc {
             position: absolute; left: 50%; top: 50%; width: 76%; aspect-ratio: 1; border-radius: 50%;
@@ -145,10 +155,10 @@
             animation: lg-pop .9s cubic-bezier(.2, .8, .2, 1) both;
         }
         .lg-disc img { width: 68%; height: auto; filter: brightness(0) invert(1); user-select: none; -webkit-user-drag: none; }
-        .lg-orbit { position: absolute; inset: 0; animation: lg-spin 38s linear infinite, lg-fade .8s .35s ease both; }
+        .lg-orbit { position: absolute; inset: 0; will-change: transform; animation: lg-spin 38s linear infinite, lg-fade .8s .35s ease both; }
         .lg-slot { position: absolute; left: 50%; top: 50%; width: 0; height: 0; transform: rotate(var(--a)) translateY(calc(var(--S) / -2)) rotate(calc(var(--a) * -1)); }
         .lg-chip { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); }
-        .lg-chip-in { display: flex; align-items: center; gap: 8px; padding: 5px; border-radius: 999px; white-space: nowrap;
+        .lg-chip-in { will-change: transform; display: flex; align-items: center; gap: 8px; padding: 5px; border-radius: 999px; white-space: nowrap;
             background: rgba(10, 14, 26, .92); border: 1px solid var(--accent-soft); color: var(--text);
             font-size: 12px; font-weight: 700; box-shadow: 0 6px 20px rgba(0, 0, 0, .45);
             animation: lg-spin 38s linear infinite reverse; }
@@ -220,6 +230,23 @@
         @media (prefers-reduced-motion: reduce) {
             .lg-orbit, .lg-chip-in, .lg-disc { animation: none !important; }
         }
+
+        /* ---------- Spinner del botón + modal iOS (antes Tailwind) ---------- */
+        .lg-spinner { width: 16px; height: 16px; animation: lg-spin .8s linear infinite; }
+        .lg-btn.is-loading { opacity: .8; }
+        .pwa-modal__close svg { width: 16px; height: 16px; }
+        .lg-m-ico { width: 44px; height: 44px; border-radius: 12px; background: #1e40af; display: flex; align-items: center; justify-content: center; margin-bottom: 12px; box-shadow: 0 2px 14px rgba(30, 64, 175, .35); }
+        .lg-m-ico svg { width: 22px; height: 22px; color: #fff; }
+        .lg-m-title { font-size: 16px; font-weight: 900; font-style: italic; text-transform: uppercase; letter-spacing: -.025em; color: #111827; margin-bottom: 4px; }
+        .lg-m-text { font-size: 12px; font-weight: 500; color: #6b7280; margin-bottom: 16px; }
+        .lg-m-steps { display: flex; flex-direction: column; gap: 12px; }
+        .lg-m-step { display: flex; align-items: flex-start; gap: 12px; }
+        .lg-m-step-txt { font-size: 12px; font-weight: 600; color: #374151; padding-top: 2px; }
+        .lg-m-share { display: inline; width: 16px; height: 16px; margin: -2px 2px 0; color: #6b7280; }
+        .lg-m-ok { width: 100%; margin-top: 20px; padding: 12px; border-radius: 12px; background: #000; color: #fff; font-size: 12px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; transition: background .2s, transform .15s; }
+        .lg-m-ok:hover { background: #1e40af; }
+        .lg-m-ok:active { transform: scale(.98); }
+        @media (min-width: 640px) { .lg-m-title { font-size: 18px; } .lg-m-text, .lg-m-step-txt { font-size: 14px; } }
     </style>
 </head>
 <body>
@@ -272,41 +299,41 @@
         <div class="pwa-modal__overlay" id="modal-instalar-ios-overlay"></div>
         <div class="pwa-modal__card">
             <button type="button" id="modal-instalar-ios-cerrar" class="pwa-modal__close" aria-label="Cerrar">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.4">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.4">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
                 </svg>
             </button>
-            <div class="w-11 h-11 bg-blue-800 rounded-xl flex items-center justify-center mb-3 shadow-[0_2px_14px_rgba(30,64,175,0.35)]">
-                <svg class="w-[22px] h-[22px] text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.3">
+            <div class="lg-m-ico">
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.3">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007z" />
                 </svg>
             </div>
-            <h2 id="modal-instalar-ios-titulo" class="text-base sm:text-lg font-black uppercase italic tracking-tight text-gray-900 mb-1">
+            <h2 id="modal-instalar-ios-titulo" class="lg-m-title">
                 Instalar en iPhone / iPad
             </h2>
-            <p class="text-gray-500 text-xs sm:text-sm font-medium mb-4">
+            <p class="lg-m-text">
                 Agregá Dropea a tu pantalla de inicio en 2 pasos:
             </p>
-            <ol class="space-y-3">
-                <li class="flex items-start gap-3">
+            <ol class="lg-m-steps">
+                <li class="lg-m-step">
                     <span class="pwa-modal__step">1</span>
-                    <span class="text-xs sm:text-sm font-semibold text-gray-700 pt-0.5">
+                    <span class="lg-m-step-txt">
                         Tocá el botón <strong>Compartir</strong>
-                        <svg class="inline w-4 h-4 -mt-0.5 mx-0.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                        <svg class="lg-m-share" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M12 12V3m0 0L8 7m4-4l4 4"/>
                         </svg>
                         en la barra de Safari.
                     </span>
                 </li>
-                <li class="flex items-start gap-3">
+                <li class="lg-m-step">
                     <span class="pwa-modal__step">2</span>
-                    <span class="text-xs sm:text-sm font-semibold text-gray-700 pt-0.5">
+                    <span class="lg-m-step-txt">
                         Elegí <strong>"Agregar a inicio"</strong> y confirmá.
                     </span>
                 </li>
             </ol>
             <button type="button" id="modal-instalar-ios-entendido"
-                class="w-full mt-5 bg-black text-white py-3 rounded-xl font-black uppercase text-xs tracking-widest hover:bg-blue-800 hover:text-white transition-all duration-200 active:scale-[0.98]">
+                class="lg-m-ok">
                 Entendido
             </button>
         </div>
@@ -438,8 +465,8 @@
         </div>
     </main>
 
-    <script src="supabase-client.js"></script>
-    <script src="login.js"></script>
-    <script src="pwa.js"></script>
+    <script defer src="supabase-client.js"></script>
+    <script defer src="login.js"></script>
+    <script defer src="pwa.js"></script>
 </body>
 </html>
