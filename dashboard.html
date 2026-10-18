@@ -902,6 +902,95 @@
                 padding-bottom: max(0.7rem, env(safe-area-inset-bottom));
             }
         }
+
+        /* ============================================================
+           BARRA DE NAVEGACIÓN INFERIOR (solo mobile, < 768px)
+           ------------------------------------------------------------
+           Barra flotante, despegada de los bordes. Cada botón muestra
+           siempre su ícono y su nombre; el activo se resalta con una
+           pastilla blanca detrás del ícono y el texto en blanco.
+           "Menú" abre el sidebar de siempre. El estado activo lo marca
+           actualizarBottomNav() (dashboard.js) con aria-current="page".
+           z-index 25: debajo del overlay del sidebar (30) para que el
+           panel la tape al abrirse. */
+        #bottom-nav {
+            position: fixed; z-index: 25;
+            left: 0; right: 0; margin: 0 auto;
+            width: calc(100% - 1.5rem); max-width: 26rem;
+            bottom: calc(.75rem + env(safe-area-inset-bottom, 0px));
+            display: flex; align-items: stretch;
+            padding: .45rem .35rem .4rem;
+            background: rgba(9, 9, 11, .94);
+            -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+            border: 1px solid rgba(255, 255, 255, .1);
+            border-radius: 1.75rem;
+            box-shadow: 0 14px 34px -8px rgba(0, 0, 0, .55), inset 0 1px 0 rgba(255, 255, 255, .06);
+        }
+        .bnav-btn {
+            flex: 1 1 0; min-width: 0;
+            display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .22rem;
+            padding: 0; border: 0; background: transparent;
+            color: #a1a1aa; /* zinc-400 */
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+            transition: color .2s, transform .12s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .bnav-ico {
+            width: 3.4rem; height: 1.85rem; border-radius: 9999px;
+            display: flex; align-items: center; justify-content: center;
+            transition: background-color .2s, box-shadow .25s;
+        }
+        .bnav-ico svg { width: 1.3rem; height: 1.3rem; transition: color .2s; }
+        .bnav-label {
+            max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+            font-size: .69rem; font-weight: 700; letter-spacing: .005em; line-height: 1.1;
+        }
+        .bnav-btn:active { transform: scale(.93); }
+        .bnav-btn:focus-visible { outline: 2px solid #60a5fa; outline-offset: -2px; border-radius: 1rem; }
+        .bnav-btn[aria-current="page"] { color: #fff; }
+        .bnav-btn[aria-current="page"] .bnav-label { font-weight: 800; }
+        .bnav-btn[aria-current="page"] .bnav-ico {
+            background: #fff; box-shadow: 0 8px 20px -6px rgba(96, 165, 250, .65);
+        }
+        .bnav-btn[aria-current="page"] .bnav-ico svg { color: #1e40af; }
+        /* Botón central "+ Nuevo": acción principal. Sobresale de la barra y no
+           es una sección (nunca queda "activo"): abre el modal de producto. */
+        .bnav-fab-btn { color: #fff; }
+        .bnav-fab {
+            width: 3.1rem; height: 3.1rem; margin-top: -1.25rem; border-radius: 9999px;
+            display: flex; align-items: center; justify-content: center;
+            background: linear-gradient(135deg, #93c5fd, #60a5fa); color: #09090b;
+            box-shadow: 0 0 0 4px #09090b, 0 10px 22px -4px rgba(96, 165, 250, .7);
+            transition: box-shadow .2s;
+        }
+        .bnav-fab svg { width: 1.5rem; height: 1.5rem; }
+        .bnav-fab-btn .bnav-label { font-weight: 800; }
+        @media (max-width: 359px) { .bnav-label { font-size: .62rem; } .bnav-ico { width: 3rem; } }
+        /* Con el teclado abierto (un campo enfocado) la barra se esconde:
+           en varios navegadores Android quedaría flotando encima del teclado
+           y tapando el campo. */
+        body.teclado-abierto #bottom-nav { display: none; }
+        @media (min-width: 768px) { #bottom-nav { display: none; } }
+        @media (prefers-reduced-motion: reduce) {
+            .bnav-btn, .bnav-ico, .bnav-ico svg { transition-duration: 0.01ms !important; }
+        }
+        /* Espacio abajo para que el último contenido no quede tapado por la barra */
+        @media (max-width: 767px) {
+            #contenido-principal { padding-bottom: calc(7.25rem + env(safe-area-inset-bottom, 0px)); }
+            /* El botón "volver arriba" sube para no quedar tapado por la barra */
+            .btn-scroll-top { bottom: calc(6.25rem + env(safe-area-inset-bottom, 0px)); }
+        }
+
+        /* Avatar de la barra superior (mobile): lleva a "Mis datos". Anillo blanco
+           como el de la tarjeta de cuenta del sidebar; se pinta azul cuando esa
+           sección está abierta (aria-current lo pone actualizarBottomNav). */
+        .topbar-avatar {
+            width: 2.5rem; height: 2.5rem; padding: 2px; border: 0; border-radius: 9999px;
+            background: #fff; cursor: pointer; -webkit-tap-highlight-color: transparent;
+            transition: box-shadow .2s, transform .12s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .topbar-avatar[aria-current="page"] { box-shadow: 0 0 0 2px #09090b, 0 0 0 4px #60a5fa; }
+        .topbar-avatar:focus-visible { outline: 2px solid #60a5fa; outline-offset: 3px; }
     </style>
 </head>
 <body class="bg-[#f1f5f9] text-slate-900 antialiased min-h-screen selection:bg-blue-800 selection:text-white">
@@ -926,8 +1015,11 @@
             <div class="flex items-center min-w-0">
                 <img src="dropea-logo.png" alt="Dropea" class="h-9 w-auto object-contain invert">
             </div>
-            <button onclick="abrirSidebarMobile()" aria-label="Abrir menú" class="w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 transition-all">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+            <button type="button" id="btn-avatar-top" onclick="mostrarSeccion('perfil')" aria-label="Mis datos: editar el perfil de mi tienda" class="topbar-avatar flex-shrink-0 active:scale-95 transition-all">
+                <span class="relative block w-full h-full rounded-full bg-black text-blue-400 overflow-hidden flex items-center justify-center font-black text-sm">
+                    <img id="avatar-top-img" src="" alt="" class="hidden absolute inset-0 w-full h-full object-cover">
+                    <span id="avatar-top-letra">?</span>
+                </span>
             </button>
         </header>
 
@@ -1032,7 +1124,7 @@
         </aside>
 
         <!-- CONTENEDOR PRINCIPAL -->
-        <main class="flex-1 p-4 sm:p-6 md:p-8 lg:p-12 xl:p-14 max-w-7xl mx-auto w-full min-w-0">
+        <main id="contenido-principal" class="flex-1 p-4 sm:p-6 md:p-8 lg:p-12 xl:p-14 max-w-7xl mx-auto w-full min-w-0">
 
             <!-- BANNER: TIENDA BLOQUEADA -->
             <div id="banner-tienda-bloqueada" class="hidden mb-6 md:mb-8 bg-red-50 border border-red-200 rounded-2xl p-4 sm:p-5 flex items-start gap-3 sm:gap-4">
@@ -1899,6 +1991,16 @@
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 15l-6-6-6 6"/></svg>
     </button>
 
+    <!-- BARRA DE NAVEGACIÓN INFERIOR (solo mobile). Va fuera del contenedor flex
+         a propósito (position:fixed). Ver estilos #bottom-nav y actualizarBottomNav(). -->
+    <nav id="bottom-nav" aria-label="Navegación principal">
+        <button type="button" id="bnav-inicio" data-bnav="inicio" onclick="mostrarSeccion('inicio')" aria-current="page" class="bnav-btn"><span class="bnav-ico"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.1" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg></span><span class="bnav-label">Inicio</span></button>
+        <button type="button" id="bnav-productos" data-bnav="productos" onclick="mostrarSeccion('productos')" class="bnav-btn"><span class="bnav-ico"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.1" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg></span><span class="bnav-label">Productos</span></button>
+        <button type="button" id="bnav-nuevo" data-bnav="nuevo" onclick="abrirFormulario()" class="bnav-btn bnav-fab-btn"><span class="bnav-fab"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.6" d="M12 5v14M5 12h14"/></svg></span><span class="bnav-label">Nuevo</span></button>
+        <button type="button" id="bnav-qr" data-bnav="qr" onclick="mostrarSeccion('qr')" class="bnav-btn"><span class="bnav-ico"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.1" d="M4 4h6v6H4V4zm10 0h6v6h-6V4zM4 14h6v6H4v-6zm11 0h1.5v1.5H15V14zm3 0h1.5v1.5H18V14zm-3 3h1.5v1.5H15V17zm3 0h1.5v1.5H18V17zm-1.5 3H15v-1.5m4.5 1.5H18v-1.5"/></svg></span><span class="bnav-label">Compartir</span></button>
+        <button type="button" id="bnav-mas" data-bnav="mas" onclick="abrirSidebarMobile()" aria-haspopup="dialog" class="bnav-btn"><span class="bnav-ico"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.1" d="M4 6h16M4 12h16M4 18h16"/></svg></span><span class="bnav-label">Menú</span></button>
+    </nav>
+
     <!-- MODAL PRODUCTO -->
     <div id="modal-form">
         <form id="form-producto" class="modal modal-lg">
@@ -2450,6 +2552,13 @@
                 if (img.decode) img.decode().catch(() => {});
             });
         });
+        // Barra inferior: se esconde mientras hay un campo de texto enfocado
+        // (teclado virtual abierto). Ver body.teclado-abierto en el CSS.
+        const BNAV_CAMPOS = 'input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=hidden]):not([type=button]):not([type=submit]), textarea, select';
+        document.addEventListener('focusin', (e) => {
+            if (e.target.matches && e.target.matches(BNAV_CAMPOS)) document.body.classList.add('teclado-abierto');
+        });
+        document.addEventListener('focusout', () => document.body.classList.remove('teclado-abierto'));
         // Si se agranda la ventana a desktop, aseguramos que quede todo limpio
         window.addEventListener('resize', () => {
             if (window.innerWidth >= 768) cerrarSidebarMobile();
