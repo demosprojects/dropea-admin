@@ -63,6 +63,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('usuario-sidebar').textContent = '@' + perfilActual.usuario;
     document.getElementById('nombre-tienda-sidebar').textContent = perfilActual.usuario;
     document.getElementById('avatar-sidebar-letra').textContent = perfilActual.usuario.charAt(0).toUpperCase();
+    const letraTop = document.getElementById('avatar-top-letra');
+    if (letraTop) letraTop.textContent = perfilActual.usuario.charAt(0).toUpperCase();
     const urlPerfil = urlPerfilPublico();
     const linkQr = document.getElementById('link-ir-a-mi-perfil-qr');
     if (linkQr) linkQr.href = urlPerfil;
@@ -591,6 +593,31 @@ function mostrarSeccion(seccionId) {
     window.scrollTo(0, 0);
     actualizarBtnScrollTop();
     ajustarTextareasAutogrow();
+    actualizarBottomNav(seccionId);
+}
+
+// Barra de navegación inferior (mobile): marca el ítem de la sección actual.
+// Las secciones que no tienen botón propio en la barra (Categorías, Anuncios,
+// Ayuda, Pagos) viven dentro de "Menú", así que ese botón queda marcado.
+// "Nuevo" no es una sección (abre el modal de producto): nunca se marca. "Mis datos" se abre
+// desde el avatar de arriba.
+function actualizarBottomNav(seccionId) {
+    // Avatar de la barra superior: marcado cuando está abierto "Mis datos"
+    const avatarTop = document.getElementById('btn-avatar-top');
+    if (avatarTop) {
+        if (seccionId === 'perfil') avatarTop.setAttribute('aria-current', 'page');
+        else avatarTop.removeAttribute('aria-current');
+    }
+    const botones = document.querySelectorAll('#bottom-nav [data-bnav]');
+    if (!botones.length) return;
+    const enBarra = Array.from(botones).some((b) => b.dataset.bnav === seccionId);
+    // "Mis datos" se abre desde el avatar, así que ahí no se marca ningún botón de la barra
+    const activo = enBarra ? seccionId : (seccionId === 'perfil' ? null : 'mas');
+    document.querySelectorAll('#bottom-nav .bnav-btn').forEach((b) => {
+        const id = b.dataset.bnav || 'mas';
+        if (id === activo) b.setAttribute('aria-current', 'page');
+        else b.removeAttribute('aria-current');
+    });
 }
 
 // ------------------------------------------------------------
@@ -2166,6 +2193,22 @@ function actualizarTarjetaCuentaSidebar(nombreTienda, logoUrl) {
         letra.classList.remove('hidden');
     };
     img.src = url;
+
+    // Mismo logo / inicial en el avatar de la barra superior (mobile)
+    const letraTop = document.getElementById('avatar-top-letra');
+    const imgTop = document.getElementById('avatar-top-img');
+    if (letraTop && imgTop) {
+        letraTop.textContent = nombre.charAt(0).toUpperCase();
+        if (!url) {
+            imgTop.classList.add('hidden');
+            imgTop.src = '';
+            letraTop.classList.remove('hidden');
+        } else {
+            imgTop.onload = () => { imgTop.classList.remove('hidden'); letraTop.classList.add('hidden'); };
+            imgTop.onerror = () => { imgTop.classList.add('hidden'); letraTop.classList.remove('hidden'); };
+            imgTop.src = url;
+        }
+    }
 }
 
 async function guardarPerfil() {
