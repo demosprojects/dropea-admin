@@ -80,6 +80,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     verificarTerminos();
     await cargarCategoriasTienda();
     await renderProductos(true);
+    cargarHistorias();
 
     iniciarRealtimeDashboard();
 
@@ -544,6 +545,283 @@ const NAV_BASE = "w-full text-left px-5 py-3 rounded-full transition-all duratio
 const NAV_ACTIVO = `${NAV_BASE} bg-white text-black shadow-[4px_4px_0_0_#60a5fa] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[2px_2px_0_0_#60a5fa]`;
 const NAV_INACTIVO = `${NAV_BASE} text-zinc-400 hover:text-blue-400 hover:bg-white/5`;
 
+// ------------------------------------------------------------
+// HISTORIAS (productos compartidos como stories, duran 24 h)
+// ------------------------------------------------------------
+let historiasActivas = [];
+const MAX_HISTORIAS_ACTIVAS = 5;
+let historiasTimer = null;
+
+async function cargarHistorias() {
+    if (!perfilActual) return;
+    const { data, error } = await supabase
+        .from('historias')
+        .select('id, producto_id, created_at, expira_en')
+        .eq('emprendedor_id', perfilActual.id)
+        .gt('expira_en', new Date().toISOString())
+        .order('created_at', { ascending: false });
+    if (error) { console.error(error); return; }
+    historiasActivas = data || [];
+    renderHistorias();
+    if (typeof pintarGridProductos === 'function') pintarGridProductos();
+    if (!historiasTimer) {
+        // Refresca cada minuto para que las historias vencidas desaparezcan solas
+        historiasTimer = setInterval(() => {
+            const ahora = Date.now();
+            const vigentes = historiasActivas.filter((h) => new Date(h.expira_en).getTime() > ahora);
+            if (vigentes.length !== historiasActivas.length) {
+                historiasActivas = vigentes;
+                pintarGridProductos();
+            }
+            renderHistorias();
+        }, 60000);
+    }
+}
+
+function historiaDeProducto(productoId) {
+    const ahora = Date.now();
+    return historiasActivas.find((h) => String(h.producto_id) === String(productoId) && new Date(h.expira_en).getTime() > ahora) || null;
+}
+
+function tiempoRestanteHistoria(expiraEn) {
+    const ms = new Date(expiraEn).getTime() - Date.now();
+    if (ms <= 0) return 'Vencida';
+    const min = Math.floor(ms / 60000);
+    if (min < 60) return `Vence en ${Math.max(min, 1)} min`;
+    const h = Math.floor(min / 60);
+    return `Vence en ${h} h ${min % 60} min`;
+}
+
+async function publicarHistoria(productoId) {
+    const p = productosCache.find((x) => String(x.id) === String(productoId));
+    if (!p) return;
+    if (p.activo === false) {
+        mostrarToast('Este producto está oculto. Mostralo primero para compartirlo como historia.', 'error');
+        return;
+    }
+    if (historiaDeProducto(p.id)) {
+        mostrarToast('Este producto ya está en tus historias.', 'info');
+        mostrarSeccion('historias');
+        return;
+    }
+    if (historiasActivas.length >= MAX_HISTORIAS_ACTIVAS) {
+        mostrarToast(`Ya tenés ${MAX_HISTORIAS_ACTIVAS} historias activas. Quitá una o esperá a que venza.`, 'error');
+        mostrarSeccion('historias');
+        return;
+    }
+    if (emprendedorActual && calcularEstadoAcceso(emprendedorActual).bloqueado) {
+        mostrarToast('Tu tienda está bloqueada, no podés publicar historias.', 'error');
+        return;
+    }
+    const { error } = await supabase
+        .from('historias')
+        .insert({ emprendedor_id: perfilActual.id, producto_id: p.id });
+    if (error) {
+        const msg = String(error.message || '');
+        if (msg.includes('LIMITE_HISTORIAS')) mostrarToast(`Ya tenés ${MAX_HISTORIAS_ACTIVAS} historias activas.`, 'error');
+        else if (msg.includes('HISTORIA_DUPLICADA')) mostrarToast('Este producto ya está en tus historias.', 'info');
+        else { console.error(error); mostrarToast('No se pudo publicar la historia. Probá de nuevo.', 'error'); }
+        await cargarHistorias();
+        return;
+    }
+    mostrarToast('Historia publicada. Dura 24 horas.', 'success');
+    await cargarHistorias();
+}
+
+// ------------------------------------------------------------
+// MENÚ "COMPARTIR" DE LA CARD (copiar link / compartir como historia)
+// ------------------------------------------------------------
+function cerrarMenuCompartir() {
+    const m = document.getElementById('menu-compartir');
+    if (m) m.remove();
+    document.removeEventListener('click', cerrarMenuCompartirFuera, true);
+    document.removeEventListener('keydown', cerrarMenuCompartirTecla, true);
+    window.removeEventListener('scroll', cerrarMenuCompartir, true);
+    window.removeEventListener('resize', cerrarMenuCompartir);
+}
+function cerrarMenuCompartirFuera(e) {
+    const m = document.getElementById('menu-compartir');
+    if (m && !m.contains(e.target) && !e.target.closest('[aria-haspopup="menu"]')) cerrarMenuCompartir();
+}
+function cerrarMenuCompartirTecla(e) {
+    if (e.key === 'Escape') cerrarMenuCompartir();
+}
+
+function abrirMenuCompartir(ev, productoId) {
+    ev.stopPropagation();
+    const previo = document.getElementById('menu-compartir-for');
+    const idPrevio = previo ? previo.value : null;
+    cerrarMenuCompartir();
+    if (idPrevio !== null && idPrevio === String(productoId)) return; // 2º toque = cerrar
+
+    const p = productosCache.find((x) => String(x.id) === String(productoId));
+    if (!p) return;
+    const enHistoria = !!historiaDeProducto(p.id);
+
+    const menu = document.createElement('div');
+    menu.id = 'menu-compartir';
+    menu.setAttribute('role', 'menu');
+    menu.className = 'fixed z-[300] w-60 bg-white rounded-2xl border border-slate-200 shadow-xl shadow-slate-900/15 p-1.5 animate-fade-in';
+
+    const opcion = (titulo, sub, iconoPath, extra, onClick, deshabilitada) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.setAttribute('role', 'menuitem');
+        b.className = 'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-colors ' + (deshabilitada ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-50');
+        const ico = document.createElement('span');
+        ico.className = 'w-9 h-9 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center flex-shrink-0';
+        ico.innerHTML = `<svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">${iconoPath}</svg>`;
+        const txt = document.createElement('span');
+        txt.className = 'min-w-0';
+        const t = document.createElement('span');
+        t.className = 'block text-sm font-extrabold text-slate-900';
+        t.textContent = titulo;
+        const d = document.createElement('span');
+        d.className = 'block text-[11px] font-semibold text-slate-400 leading-tight';
+        d.textContent = sub;
+        txt.append(t, d);
+        b.append(ico, txt);
+        b.addEventListener('click', () => { cerrarMenuCompartir(); onClick(); });
+        return b;
+    };
+
+    menu.appendChild(opcion(
+        'Copiar link', 'Para WhatsApp, redes o donde quieras',
+        '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244"/>',
+        '', () => copiarLinkProducto(p.id), false));
+    menu.appendChild(opcion(
+        enHistoria ? 'Ya está en tus historias' : 'Compartir como historia',
+        enHistoria ? 'Administrala en la sección Historias' : 'Se ve en tu perfil durante 24 horas',
+        '<circle cx="12" cy="12" r="9" stroke-width="2" stroke-dasharray="3.2 2.6"/><path stroke-linecap="round" stroke-width="2" d="M12 8.5v7M8.5 12h7"/>',
+        '', () => publicarHistoria(p.id), false));
+
+    const marca = document.createElement('input');
+    marca.type = 'hidden'; marca.id = 'menu-compartir-for'; marca.value = String(p.id);
+    menu.appendChild(marca);
+
+    document.body.appendChild(menu);
+
+    // Posición: debajo del botón (o arriba si no entra), sin salirse de la pantalla
+    const r = ev.currentTarget.getBoundingClientRect();
+    const w = menu.offsetWidth, h = menu.offsetHeight;
+    let left = Math.min(Math.max(8, r.left + r.width / 2 - w / 2), window.innerWidth - w - 8);
+    let top = r.bottom + 6;
+    if (top + h > window.innerHeight - 8) top = Math.max(8, r.top - h - 6);
+    menu.style.left = left + 'px';
+    menu.style.top = top + 'px';
+
+    // Se registran en el próximo tick para que este mismo click no lo cierre
+    setTimeout(() => {
+        document.addEventListener('click', cerrarMenuCompartirFuera, true);
+        document.addEventListener('keydown', cerrarMenuCompartirTecla, true);
+        window.addEventListener('scroll', cerrarMenuCompartir, true);
+        window.addEventListener('resize', cerrarMenuCompartir);
+    }, 0);
+}
+
+async function quitarHistoria(id) {
+    const ok = await confirmarAccion('La historia deja de verse en la web. El producto no se borra.', {
+        titulo: '¿Quitar historia?',
+        textoConfirmar: 'Quitar',
+    });
+    if (!ok) return;
+    const { error } = await supabase.from('historias').delete().eq('id', id);
+    if (error) { console.error(error); mostrarToast('No se pudo quitar la historia.', 'error'); return; }
+    await cargarHistorias();
+}
+
+function verVistaPreviaHistorias() {
+    if (!window.Historias || !Historias.vistaPrevia(perfilActual.id)) {
+        mostrarToast('Todavía no tenés historias activas para ver.', 'info');
+    }
+}
+
+function renderHistorias() {
+    const contador = document.getElementById('historias-contador');
+    const lista = document.getElementById('historias-activas');
+    const picker = document.getElementById('historias-productos');
+    if (!contador || !lista || !picker) return;
+
+    const ahora = Date.now();
+    const vigentes = historiasActivas.filter((h) => new Date(h.expira_en).getTime() > ahora);
+    contador.textContent = `${vigentes.length}/${MAX_HISTORIAS_ACTIVAS}`;
+    const btnVer = document.getElementById('historias-btn-ver');
+    if (btnVer) btnVer.classList.toggle('hidden', vigentes.length === 0);
+
+    // Historias activas
+    lista.replaceChildren();
+    if (!vigentes.length) {
+        const vacio = document.createElement('p');
+        vacio.className = 'text-sm text-slate-400 font-semibold py-4';
+        vacio.textContent = 'No tenés historias activas. Elegí un producto abajo para publicar la primera.';
+        lista.appendChild(vacio);
+    }
+    vigentes.forEach((h) => {
+        const p = productosCache.find((x) => x.id === h.producto_id);
+        const fila = document.createElement('div');
+        fila.className = 'flex items-center gap-3 bg-white rounded-2xl border border-slate-200/80 p-2.5 shadow-sm';
+        const img = document.createElement('img');
+        img.className = 'w-12 h-12 rounded-xl object-cover bg-slate-100 flex-shrink-0';
+        img.alt = '';
+        img.src = (p && p.imagen_url) || (typeof IMAGEN_PRODUCTO_DEFAULT !== 'undefined' ? IMAGEN_PRODUCTO_DEFAULT : '');
+        const txt = document.createElement('div');
+        txt.className = 'min-w-0 flex-1';
+        const nom = document.createElement('p');
+        nom.className = 'font-extrabold text-slate-900 text-sm truncate';
+        nom.textContent = p ? p.nombre : 'Producto';
+        const resto = document.createElement('p');
+        resto.className = 'text-[11px] font-bold uppercase tracking-wider text-blue-800';
+        resto.textContent = tiempoRestanteHistoria(h.expira_en);
+        txt.append(nom, resto);
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'h-9 px-3 rounded-xl bg-slate-50 text-slate-600 hover:bg-red-500 hover:text-white text-[11px] font-black uppercase tracking-wider transition-colors flex-shrink-0';
+        btn.textContent = 'Quitar';
+        btn.addEventListener('click', () => quitarHistoria(h.id));
+        fila.append(img, txt, btn);
+        lista.appendChild(fila);
+    });
+
+    // Selector de productos (visibles y sin historia activa)
+    picker.replaceChildren();
+    const candidatos = productosCache.filter((p) => p.activo !== false && !historiaDeProducto(p.id));
+    const lleno = vigentes.length >= MAX_HISTORIAS_ACTIVAS;
+    if (!candidatos.length) {
+        const vacio = document.createElement('p');
+        vacio.className = 'col-span-full text-sm text-slate-400 font-semibold py-4';
+        vacio.textContent = productosCache.length ? 'Todos tus productos visibles ya están en historias.' : 'Cargá un producto para poder compartirlo.';
+        picker.appendChild(vacio);
+        return;
+    }
+    candidatos.forEach((p) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.disabled = lleno;
+        b.className = 'text-left bg-white rounded-2xl border border-slate-200/80 overflow-hidden shadow-sm transition-all ' + (lleno ? 'opacity-50 cursor-not-allowed' : 'hover:border-blue-800 hover:shadow-md');
+        const img = document.createElement('img');
+        img.className = 'w-full aspect-square object-cover bg-slate-100';
+        img.alt = '';
+        img.loading = 'lazy';
+        img.src = p.imagen_url || (typeof IMAGEN_PRODUCTO_DEFAULT !== 'undefined' ? IMAGEN_PRODUCTO_DEFAULT : '');
+        const cuerpo = document.createElement('div');
+        cuerpo.className = 'p-2.5';
+        const nom = document.createElement('p');
+        nom.className = 'font-bold text-slate-900 text-xs sm:text-sm line-clamp-2';
+        nom.textContent = p.nombre;
+        const precio = document.createElement('p');
+        precio.className = 'font-black text-slate-900 text-sm mt-0.5';
+        precio.textContent = formatoPrecio(p.precio);
+        const cta = document.createElement('span');
+        cta.className = 'mt-2 inline-block text-[10px] font-black uppercase tracking-widest text-blue-800';
+        cta.textContent = '+ Publicar historia';
+        cuerpo.append(nom, precio, cta);
+        b.append(img, cuerpo);
+        b.addEventListener('click', () => publicarHistoria(p.id));
+        picker.appendChild(b);
+    });
+}
+
+
 function mostrarSeccion(seccionId) {
     const secciones = {
         inicio: document.getElementById('section-inicio'),
@@ -554,6 +832,7 @@ function mostrarSeccion(seccionId) {
         pagos: document.getElementById('section-pagos'),
         anuncios: document.getElementById('section-anuncios'),
         qr: document.getElementById('section-qr'),
+        historias: document.getElementById('section-historias'),
     };
     const navs = {
         inicio: document.getElementById('nav-inicio'),
@@ -564,6 +843,7 @@ function mostrarSeccion(seccionId) {
         pagos: document.getElementById('nav-pagos'),
         anuncios: document.getElementById('nav-anuncios'),
         qr: document.getElementById('nav-qr'),
+        historias: document.getElementById('nav-historias'),
     };
 
     Object.keys(secciones).forEach((id) => {
@@ -585,6 +865,7 @@ function mostrarSeccion(seccionId) {
     // La vista previa del cartel QR se arma recién al entrar a la sección
     // (evita generar el QR/objeto de vista previa si el emprendedor nunca la visita).
     if (seccionId === 'qr') renderFormatoQR(formatoQRActivo);
+    if (seccionId === 'historias') cargarHistorias();
 
     // Al cambiar de sección siempre arrancamos scrolleados arriba del todo.
     // Sin esto, el scroll de la ventana quedaba donde estaba en la sección
@@ -812,8 +1093,8 @@ function pintarGridProductos() {
                             ? `<svg class="w-3.5 h-3.5 xl:w-[18px] xl:h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>`
                             : `<svg class="w-3.5 h-3.5 xl:w-[18px] xl:h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.774 3.162 10.066 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88"/></svg>`}
                     </button>
-                    <button onclick="copiarLinkProducto('${p.id}')" title="Copiar link para compartir" class="flex-1 h-7 sm:h-8 xl:h-10 rounded-lg xl:rounded-xl bg-slate-50 text-slate-600 hover:bg-sky-500 hover:text-white flex items-center justify-center transition-colors">
-                        <svg class="w-3.5 h-3.5 xl:w-[18px] xl:h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244"/></svg>
+                    <button onclick="abrirMenuCompartir(event, '${p.id}')" aria-haspopup="menu" title="Compartir" class="flex-1 h-7 sm:h-8 xl:h-10 rounded-lg xl:rounded-xl ${historiaDeProducto(p.id) ? 'bg-blue-800 text-white' : 'bg-slate-50 text-slate-600 hover:bg-sky-500 hover:text-white'} flex items-center justify-center transition-colors">
+                        <svg class="w-3.5 h-3.5 xl:w-[18px] xl:h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7.217 10.907a2.25 2.25 0 100 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186l9.566-5.314m-9.566 7.5l9.566 5.314m0 0a2.25 2.25 0 103.935 2.186 2.25 2.25 0 00-3.935-2.186zm0-12.814a2.25 2.25 0 103.933-2.185 2.25 2.25 0 00-3.933 2.185z"/></svg>
                     </button>
                     <button onclick="editarProducto('${p.id}')" title="Editar" class="flex-1 h-7 sm:h-8 xl:h-10 rounded-lg xl:rounded-xl bg-slate-50 text-slate-600 hover:bg-blue-800 hover:text-white flex items-center justify-center transition-colors">
                         <svg class="w-3.5 h-3.5 xl:w-[18px] xl:h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
