@@ -2330,8 +2330,7 @@ async function cargarPerfilEmprendedor() {
     document.getElementById('p-tiktok').value = extraerUsuarioRedSocial(data.tiktok || '');
     document.getElementById('p-costo-envio').value = data.costo_envio ? formatoPrecioInput(data.costo_envio) : '';
     document.getElementById('p-anuncio').value = data.anuncio || '';
-    const chkPedidos = document.getElementById('p-recibe-pedidos');
-    if (chkPedidos) chkPedidos.checked = data.recibe_pedidos === true;
+    marcarModoPedidos(data.recibe_pedidos === true ? 'whatsapp' : 'catalogo');
 
     mediosPagoPerfilSeleccion = data.medios_pago || [];
     renderMediosPagoPerfil();
@@ -2492,7 +2491,48 @@ function actualizarTarjetaCuentaSidebar(nombreTienda, logoUrl) {
     }
 }
 
+// ============================================================
+// MODO DE PEDIDOS: 'catalogo' (solo catálogo online) | 'whatsapp'
+// Se guarda en recibe_pedidos (true = pedidos por WhatsApp)
+// ============================================================
+function modoPedidosElegido() {
+    const r = document.querySelector('input[name="p-modo-pedidos"]:checked');
+    return r ? r.value : 'catalogo';
+}
+
+function marcarModoPedidos(modo) {
+    document.querySelectorAll('input[name="p-modo-pedidos"]').forEach((r) => { r.checked = r.value === modo; });
+    actualizarAvisoModoPedidos();
+}
+
+// Aviso debajo de las opciones: falta cargar el WhatsApp
+function actualizarAvisoModoPedidos() {
+    const aviso = document.getElementById('modo-pedidos-aviso');
+    if (!aviso) return;
+    const sinWsp = document.getElementById('p-whatsapp').value.replace(/\D/g, '').length < 8;
+    const mostrar = modoPedidosElegido() === 'whatsapp' && sinWsp;
+    aviso.className = 'mt-4 text-xs font-semibold rounded-xl px-3.5 py-3 leading-relaxed ' +
+        (mostrar ? 'bg-amber-50 text-amber-800 border border-amber-200' : 'hidden');
+    aviso.textContent = mostrar ? 'Para recibir pedidos por WhatsApp necesitás cargar tu número de WhatsApp en "Datos de contacto".' : '';
+}
+
+function cambiarModoPedidosUI() {
+    actualizarAvisoModoPedidos();
+}
+
+// El aviso se actualiza mientras se escribe el número
+document.addEventListener('input', (ev) => {
+    if (ev.target && ev.target.id === 'p-whatsapp') actualizarAvisoModoPedidos();
+});
+
 async function guardarPerfil() {
+    // Pedidos por WhatsApp necesitan un número cargado
+    if (modoPedidosElegido() === 'whatsapp' && document.getElementById('p-whatsapp').value.replace(/\D/g, '').length < 8) {
+        mostrarToast('Para recibir pedidos por WhatsApp cargá primero tu número de WhatsApp.', 'error');
+        document.getElementById('p-whatsapp').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        document.getElementById('p-whatsapp').focus({ preventScroll: true });
+        return;
+    }
     const btn = document.getElementById('btn-guardar-perfil-2');
     const textoOriginal = btn.innerText;
     btn.disabled = true;
@@ -2522,7 +2562,7 @@ async function guardarPerfil() {
         })(),
         medios_pago: mediosPagoPerfilSeleccion,
         costo_envio: parsearPrecio(document.getElementById('p-costo-envio').value),
-        recibe_pedidos: !!document.getElementById('p-recibe-pedidos')?.checked
+        recibe_pedidos: modoPedidosElegido() === 'whatsapp'
     };
 
     const { error } = await supabase.from('emprendedores').update(datos).eq('id', perfilActual.id);
