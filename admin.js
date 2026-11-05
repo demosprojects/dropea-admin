@@ -403,6 +403,7 @@ function abrirModalDetalleEmprendedor(id) {
     btnInicio.className = 'mt-2 w-full inline-flex items-center justify-center gap-2 py-3 rounded-2xl font-black uppercase tracking-widest text-[11px] sm:text-xs transition-all active:scale-95 ' +
         (oculta ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-500 hover:text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-800 hover:text-white');
     btnInicio.onclick = () => toggleOcultoInicio(e.id, oculta);
+    document.getElementById('detalle-btn-eliminar').onclick = () => eliminarTienda(e.id);
 
     // Suscripción: vencimiento y botón para asignar un mes (pago por transferencia).
     // Solo tiene sentido en tiendas activas (al día o sin pago); las bloqueadas
@@ -816,4 +817,210 @@ async function eliminarPostulacion() {
     mostrarToast('Postulación eliminada.', 'success');
     cerrarModalPostulacionDetalle();
     await cargarPostulacionesAdmin();
+}
+
+
+// ============================================================
+// CREAR TIENDA DESDE EL ADMIN (vía Worker con service_role)
+// ============================================================
+const API_CREAR_TIENDA = 'https://authdropea.leonelgalazzoaz.workers.dev/';
+
+function abrirModalCrearTienda() {
+    document.getElementById('form-crear-tienda').reset();
+    usuarioEditadoAMano = false;
+    document.getElementById('modal-crear-tienda').classList.remove('hidden');
+    document.body.classList.add('overflow-hidden');
+    document.getElementById('ct-nombre').focus();
+}
+
+function cerrarModalCrearTienda() {
+    document.getElementById('modal-crear-tienda').classList.add('hidden');
+    document.body.classList.remove('overflow-hidden');
+}
+
+function generarPasswordCrearTienda() {
+    // Sin caracteres que se confunden (0/O, 1/l/I)
+    const chars = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    const bytes = crypto.getRandomValues(new Uint32Array(10));
+    document.getElementById('ct-password').value = Array.from(bytes, b => chars[b % chars.length]).join('');
+}
+
+function slugUsuario(texto) {
+    return String(texto || '')
+        .toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')   // saca tildes
+        .replace(/[^a-z0-9]+/g, '')
+        .slice(0, 30);
+}
+
+// Sugiere el usuario a partir del nombre mientras no lo hayas tocado a mano
+let usuarioEditadoAMano = false;
+document.getElementById('ct-usuario').addEventListener('input', () => { usuarioEditadoAMano = true; });
+document.getElementById('ct-nombre').addEventListener('input', (ev) => {
+    if (!usuarioEditadoAMano) document.getElementById('ct-usuario').value = slugUsuario(ev.target.value);
+});
+
+document.getElementById('form-crear-tienda').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+
+    const nombreTienda = document.getElementById('ct-nombre').value.trim();
+    const usuario = document.getElementById('ct-usuario').value.trim().toLowerCase();
+    const email = document.getElementById('ct-email').value.trim().toLowerCase();
+    const password = document.getElementById('ct-password').value;
+
+    const btn = document.getElementById('btn-crear-tienda');
+    btn.disabled = true;
+    btn.textContent = 'Creando...';
+
+    try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) { mostrarToast('Tu sesión expiró. Volvé a iniciar sesión.', 'error'); return; }
+
+        const res = await fetch(API_CREAR_TIENDA, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${session.access_token}`,
+            },
+            body: JSON.stringify({ email, password, usuario, nombreTienda }),
+        });
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok) {
+            mostrarToast(data.error || 'No se pudo crear la tienda.', 'error', 6000);
+            return;
+        }
+
+        cerrarModalCrearTienda();
+        mostrarToast('Tienda creada y activada.', 'success');
+        await cargarEmprendedores();
+
+        // Ofrece copiar los datos de acceso para mandárselos al cliente
+        const copiar = await confirmarAccion(
+            `Usuario: ${usuario}\nContraseña: ${password}`,
+            { titulo: 'Tienda creada', textoConfirmar: 'Copiar datos', textoCancelar: 'Cerrar', peligro: false }
+        );
+        if (copiar) {
+            await copiarAlPortapapeles(
+                `Tu tienda en Dropea está lista.\nIngresá en https://dropea.vercel.app/login\nUsuario: ${usuario}\nContraseña: ${password}\nTu tienda: ${SITIO_PUBLICO}/tienda?t=${usuario}`,
+                'Datos copiados.'
+            );
+        }
+    } catch (err) {
+        console.error('Error creando tienda:', err);
+        mostrarToast('No se pudo conectar con el servidor. Revisá la consola.', 'error', 6000);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Crear tienda';
+    }
+});
+
+
+// ============================================================
+// ELIMINAR TIENDA POR COMPLETO (vía Worker: borra la cuenta de Auth)
+// ============================================================
+
+// Como confirmarAccion, pero hay que escribir el texto para habilitar el botón.
+function confirmarEscribiendo(mensaje, textoEsperado, opciones = {}) {
+    const { titulo = '¿Estás seguro?', textoConfirmar = 'Eliminar' } = opciones;
+
+    return new Promise((resolve) => {
+        const overlay = document.createElement('div');
+        overlay.className = 'cp-confirm-overlay';
+
+        const box = document.createElement('div');
+        box.className = 'cp-confirm-box';
+
+        const pTitulo = document.createElement('p');
+        pTitulo.className = 'cp-confirm-title';
+        pTitulo.textContent = titulo;
+
+        const pMsg = document.createElement('p');
+        pMsg.className = 'cp-confirm-msg';
+        pMsg.textContent = mensaje;
+
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.autocomplete = 'off';
+        input.placeholder = textoEsperado;
+        input.style.cssText = 'width:100%;margin:-0.75rem 0 1.25rem;padding:0.75rem;border:1px solid #e2e8f0;border-radius:12px;font-weight:600;font-size:0.85rem;outline:none;box-sizing:border-box;';
+
+        const acciones = document.createElement('div');
+        acciones.className = 'cp-confirm-actions';
+
+        const btnCancelar = document.createElement('button');
+        btnCancelar.type = 'button';
+        btnCancelar.className = 'cp-confirm-cancel';
+        btnCancelar.textContent = 'Cancelar';
+
+        const btnOk = document.createElement('button');
+        btnOk.type = 'button';
+        btnOk.className = 'cp-confirm-ok peligro';
+        btnOk.textContent = textoConfirmar;
+        btnOk.disabled = true;
+        btnOk.style.opacity = '0.4';
+        btnOk.style.cursor = 'not-allowed';
+
+        input.addEventListener('input', () => {
+            const coincide = input.value.trim().toLowerCase() === String(textoEsperado).toLowerCase();
+            btnOk.disabled = !coincide;
+            btnOk.style.opacity = coincide ? '1' : '0.4';
+            btnOk.style.cursor = coincide ? 'pointer' : 'not-allowed';
+        });
+
+        const cerrar = (resultado) => { overlay.remove(); resolve(resultado); };
+        btnCancelar.addEventListener('click', () => cerrar(false));
+        btnOk.addEventListener('click', () => { if (!btnOk.disabled) cerrar(true); });
+
+        acciones.append(btnCancelar, btnOk);
+        box.append(pTitulo, pMsg, input, acciones);
+        overlay.appendChild(box);
+        document.body.appendChild(overlay);
+        input.focus();
+    });
+}
+
+async function eliminarTienda(id) {
+    const e = emprendedoresCache.find(x => String(x.id) === String(id));
+    if (!e) return;
+
+    const usuario = e.usuarios ? e.usuarios.usuario : '';
+    if (!usuario) {
+        mostrarToast('Esta tienda no tiene usuario asociado; eliminala desde Supabase.', 'error', 6000);
+        return;
+    }
+
+    const ok = await confirmarEscribiendo(
+        `Vas a eliminar "${e.nombre_tienda || usuario}" y su cuenta por completo. No se puede deshacer. Para confirmar, escribí el usuario: ${usuario}`,
+        usuario,
+        { titulo: '¿Eliminar tienda definitivamente?', textoConfirmar: 'Eliminar' }
+    );
+    if (!ok) return;
+
+    try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) { mostrarToast('Tu sesión expiró. Volvé a iniciar sesión.', 'error'); return; }
+
+        const res = await fetch(API_CREAR_TIENDA, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${session.access_token}`,
+            },
+            body: JSON.stringify({ accion: 'eliminar', id }),
+        });
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok) {
+            mostrarToast(data.error || 'No se pudo eliminar la tienda.', 'error', 6000);
+            return;
+        }
+
+        cerrarModalDetalleEmprendedor();
+        mostrarToast('Tienda eliminada.', 'success');
+        await cargarEmprendedores();
+    } catch (err) {
+        console.error('Error eliminando tienda:', err);
+        mostrarToast('No se pudo conectar con el servidor. Revisá la consola.', 'error', 6000);
+    }
 }
