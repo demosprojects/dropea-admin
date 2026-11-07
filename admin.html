@@ -646,6 +646,19 @@
                     <button type="button" id="detalle-btn-asignar-mes" class="mt-2 w-full inline-flex items-center justify-center gap-2 py-3 rounded-2xl font-black uppercase tracking-widest text-[11px] sm:text-xs transition-all active:scale-95 bg-emerald-50 text-emerald-700 hover:bg-emerald-500 hover:text-white">
                         Asignar 1 mes (pago por transferencia)
                     </button>
+                    <div class="mt-2 bg-gray-50 rounded-xl p-3.5">
+                        <p class="text-[10px] font-black uppercase text-gray-400 mb-2 tracking-widest">Ajustar días manualmente</p>
+                        <div class="flex items-stretch gap-2">
+                            <input type="number" id="detalle-dias-input" min="1" step="1" inputmode="numeric" placeholder="Días"
+                                class="w-24 shrink-0 px-3 py-2.5 rounded-xl border border-gray-200 bg-white text-sm font-bold text-gray-800 text-center focus:outline-none focus:border-gray-400">
+                            <button type="button" id="detalle-btn-sumar-dias" class="flex-1 inline-flex items-center justify-center py-2.5 rounded-xl font-black uppercase tracking-widest text-[11px] transition-all active:scale-95 bg-emerald-50 text-emerald-700 hover:bg-emerald-500 hover:text-white">
+                                + Sumar
+                            </button>
+                            <button type="button" id="detalle-btn-restar-dias" class="flex-1 inline-flex items-center justify-center py-2.5 rounded-xl font-black uppercase tracking-widest text-[11px] transition-all active:scale-95 bg-orange-50 text-orange-700 hover:bg-orange-500 hover:text-white">
+                                − Descontar
+                            </button>
+                        </div>
+                    </div>
                 </div>
 
                 <p id="detalle-creado" class="text-[10px] text-gray-400 font-semibold uppercase tracking-widest mt-5"></p>
