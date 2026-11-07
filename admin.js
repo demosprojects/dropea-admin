@@ -44,7 +44,6 @@ function setFiltroEmprendedores(filtro) {
 
 function iniciarRealtimeAdmin() {
     suscribirTabla('emprendedores', debounce(cargarEmprendedores, 350));
-    suscribirTabla('productos', debounce(cargarProductosAdmin, 350));
     suscribirTabla('postulaciones', debounce(cargarPostulacionesAdmin, 350));
 }
 
@@ -53,12 +52,11 @@ const NAV_ACTIVO = `${NAV_BASE} bg-white text-black shadow-[4px_4px_0_0_#60a5fa]
 const NAV_INACTIVO = `${NAV_BASE} text-zinc-400 hover:text-blue-400 hover:bg-white/5`;
 
 function mostrarSeccion(id) {
-    const secciones = ['emprendedores', 'productos', 'postulaciones'];
+    const secciones = ['emprendedores', 'postulaciones'];
     secciones.forEach(s => {
         document.getElementById('section-' + s).classList.toggle('hidden', s !== id);
         document.getElementById('nav-' + s).className = s === id ? NAV_ACTIVO : NAV_INACTIVO;
     });
-    if (id === 'productos') cargarProductosAdmin();
     if (id === 'postulaciones') cargarPostulacionesAdmin();
 }
 
@@ -633,60 +631,6 @@ document.getElementById('form-bloqueo').addEventListener('submit', async (e) => 
     cerrarModalBloqueo();
     await cargarEmprendedores();
 });
-
-async function cargarProductosAdmin() {
-    const tabla = document.getElementById('tabla-productos-admin');
-    const { data, error } = await supabase
-        .from('productos')
-        .select('*, emprendedores(nombre_tienda)')
-        .order('created_at', { ascending: false });
-
-    if (error) { tabla.innerHTML = `<div class="p-8 text-center text-red-400 font-semibold">Error cargando productos.</div>`; return; }
-
-    if (data.length === 0) {
-        tabla.innerHTML = `<div class="p-8 text-center text-slate-400 font-semibold">No hay productos cargados todavía.</div>`;
-        return;
-    }
-
-    tabla.innerHTML = data.map(p => `
-        <div class="bg-white rounded-xl sm:rounded-2xl border border-slate-200/80 shadow-sm p-2.5 sm:p-4 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 hover:shadow-md transition-shadow">
-            <div class="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
-                <img src="${urlGrillaProducto(p, 60) || IMAGEN_PRODUCTO_DEFAULT}" class="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl object-cover border border-slate-100 bg-slate-100 flex-shrink-0" loading="lazy" decoding="async">
-                <div class="min-w-0">
-                    <p class="font-bold sm:font-extrabold text-slate-900 text-sm sm:text-base truncate">${escapeHtml(p.nombre)}</p>
-                    <p class="text-[10px] sm:text-xs text-slate-400 truncate">${p.emprendedores ? escapeHtml(p.emprendedores.nombre_tienda) : '-'}</p>
-                </div>
-            </div>
-            <div class="flex items-center justify-between sm:justify-end gap-3 sm:gap-6 flex-shrink-0 pl-[50px] sm:pl-0">
-                <span class="font-black text-slate-900 text-sm sm:text-base whitespace-nowrap">${formatoPrecio(p.precio)}</span>
-                <span class="text-[8px] sm:text-[10px] font-black uppercase px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-full whitespace-nowrap ${p.activo ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-400'}">
-                    ${p.activo ? 'Visible' : 'Oculto'}
-                </span>
-                <button onclick="eliminarProductoAdmin('${p.id}')" class="text-red-400 hover:text-red-600 font-black text-[8px] sm:text-[10px] uppercase tracking-widest transition-colors whitespace-nowrap">Eliminar</button>
-            </div>
-        </div>
-    `).join('');
-}
-
-async function eliminarProductoAdmin(id) {
-    const confirmado = await confirmarAccion(
-        'Esta acción no se puede deshacer.',
-        { titulo: '¿Eliminar este producto de la plataforma?', textoConfirmar: 'Eliminar' }
-    );
-    if (!confirmado) return;
-
-    // Guardamos las URLs de las fotos antes de borrar la fila, para limpiar el storage después.
-    const { data: prod } = await supabase.from('productos').select('imagen_url, imagen_thumb_url').eq('id', id).maybeSingle();
-
-    const { error } = await supabase.from('productos').delete().eq('id', id);
-    if (error) { mostrarToast('No se pudo eliminar el producto.', 'error'); console.error(error); return; }
-
-    if (prod && typeof borrarImagenProductoSupabase === 'function') {
-        borrarImagenProductoSupabase(prod.imagen_url, prod.imagen_thumb_url); // no crítico: si falla solo loguea
-    }
-    mostrarToast('Producto eliminado.', 'success');
-    await cargarProductosAdmin();
-}
 
 function escapeHtml(str) {
     const div = document.createElement('div');
