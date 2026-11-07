@@ -426,6 +426,10 @@ function abrirModalDetalleEmprendedor(id) {
         badgeSusc.className = 'px-3 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wide ' +
             (estadoDetalle === 'sin_pago' ? 'bg-orange-100 text-orange-700' : (acceso.enPruebaGratis ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'));
         document.getElementById('detalle-btn-asignar-mes').onclick = () => asignarMesEmprendedor(e.id);
+        const inputDias = document.getElementById('detalle-dias-input');
+        inputDias.value = '';
+        document.getElementById('detalle-btn-sumar-dias').onclick = () => ajustarDiasEmprendedor(e.id, 1);
+        document.getElementById('detalle-btn-restar-dias').onclick = () => ajustarDiasEmprendedor(e.id, -1);
     }
 
     // Botón principal: bloquear / activar (activo === true cubre 'activa' y 'sin_pago')
@@ -490,6 +494,74 @@ async function asignarMesEmprendedor(id) {
 
     cerrarModalDetalleEmprendedor();
     mostrarToast(`Mes asignado. Vence el ${nuevoVencimiento.toLocaleDateString('es-AR')}.`, 'success');
+    await cargarEmprendedores();
+}
+
+// Ajuste manual de días: suma (signo = 1) o descuenta (signo = -1) la cantidad de días
+// escrita en el input del detalle. Al sumar se comporta como "Asignar mes": si todavía
+// tiene tiempo vigente se suma a su vencimiento, si ya venció se cuenta desde hoy, y queda
+// "authorized". Al descontar se resta del vencimiento actual (o de hoy si no tiene) y no
+// toca el estado; si la fecha resultante ya pasó, la tienda queda bloqueada por falta de pago.
+async function ajustarDiasEmprendedor(id, signo) {
+    const e = emprendedoresCache.find(x => String(x.id) === String(id));
+    if (!e) return;
+
+    const input = document.getElementById('detalle-dias-input');
+    const dias = Number(input.value);
+    if (!Number.isInteger(dias) || dias < 1) {
+        mostrarToast('Ingresá una cantidad de días válida (número entero, mínimo 1).', 'error');
+        input.focus();
+        return;
+    }
+    if (dias > 3650) {
+        mostrarToast('La cantidad de días es demasiado grande.', 'error');
+        return;
+    }
+
+    const acceso = calcularEstadoAcceso(e);
+    const ahora = new Date();
+    const vencActual = acceso.vencimiento || null;
+    const agregar = signo > 0;
+
+    const base = agregar
+        ? ((vencActual && vencActual.getTime() > ahora.getTime()) ? vencActual : ahora)
+        : (vencActual || ahora);
+    const nuevoVencimiento = new Date(base.getTime());
+    nuevoVencimiento.setDate(nuevoVencimiento.getDate() + signo * dias);
+
+    const nombre = e.nombre_tienda || 'La tienda';
+    const fechaTxt = nuevoVencimiento.toLocaleDateString('es-AR');
+    const textoDias = `${dias} ${dias === 1 ? 'día' : 'días'}`;
+    const quedaVencida = nuevoVencimiento.getTime() <= ahora.getTime();
+
+    let mensaje;
+    if (agregar) {
+        mensaje = `${nombre} va a quedar al día hasta el ${fechaTxt}.`;
+    } else if (quedaVencida) {
+        mensaje = `${nombre} va a quedar con vencimiento el ${fechaTxt}, que ya pasó: la tienda se va a bloquear por falta de pago.`;
+    } else {
+        mensaje = `${nombre} va a quedar al día hasta el ${fechaTxt}.`;
+    }
+
+    const ok = await confirmarAccion(mensaje, {
+        titulo: agregar ? `Sumar ${textoDias}` : `Descontar ${textoDias}`,
+        textoConfirmar: agregar ? 'Sumar días' : 'Descontar días',
+        peligro: !agregar,
+    });
+    if (!ok) return;
+
+    const cambios = { fecha_vencimiento_suscripcion: nuevoVencimiento.toISOString() };
+    if (agregar) cambios.suscripcion_estado = 'authorized';
+
+    const { error } = await supabase.from('emprendedores').update(cambios).eq('id', id);
+    if (error) {
+        mostrarToast(`No se pudieron ${agregar ? 'sumar' : 'descontar'} los días.`, 'error');
+        console.error(error);
+        return;
+    }
+
+    cerrarModalDetalleEmprendedor();
+    mostrarToast(`${agregar ? 'Se sumaron' : 'Se descontaron'} ${textoDias}. Vence el ${fechaTxt}.`, 'success');
     await cargarEmprendedores();
 }
 
