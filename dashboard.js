@@ -38,7 +38,7 @@ const grid = document.getElementById('grid-productos');
 const contadorProductos = document.getElementById('contador-productos');
 const formReportarProblema = document.getElementById('form-reportar-problema');
 formReportarProblema?.addEventListener('submit', enviarReporteProblema);
-const modal = document.getElementById('modal-form');
+const seccionProductoForm = document.getElementById('section-producto-form');
 const form = document.getElementById('form-producto');
 const listaVariantes = document.getElementById('lista-variantes');
 
@@ -833,6 +833,7 @@ function mostrarSeccion(seccionId) {
         anuncios: document.getElementById('section-anuncios'),
         qr: document.getElementById('section-qr'),
         historias: document.getElementById('section-historias'),
+        'producto-form': document.getElementById('section-producto-form'),
     };
     const navs = {
         inicio: document.getElementById('nav-inicio'),
@@ -846,9 +847,17 @@ function mostrarSeccion(seccionId) {
         historias: document.getElementById('nav-historias'),
     };
 
+    // El formulario de producto no tiene ítem propio en el menú: mientras está
+    // abierto queda marcado "Productos".
+    const seccionNav = seccionId === 'producto-form' ? 'productos' : seccionId;
+    document.body.classList.toggle('editando-producto', seccionId === 'producto-form');
+
     Object.keys(secciones).forEach((id) => {
-        const activa = id === seccionId;
-        secciones[id].classList.toggle('hidden', !activa);
+        secciones[id].classList.toggle('hidden', id !== seccionId);
+    });
+
+    Object.keys(navs).forEach((id) => {
+        const activa = id === seccionNav;
         // "Mis datos" ya no es un ítem del menú sino la tarjeta de cuenta (tiene su
         // propio estilo): solo se le marca/desmarca el estado activo.
         if (id === 'perfil') {
@@ -874,7 +883,7 @@ function mostrarSeccion(seccionId) {
     window.scrollTo(0, 0);
     actualizarBtnScrollTop();
     ajustarTextareasAutogrow();
-    actualizarBottomNav(seccionId);
+    actualizarBottomNav(seccionNav);
 }
 
 // Barra de navegación inferior (mobile): marca el ítem de la sección actual.
@@ -1489,7 +1498,7 @@ function renderMediosPagoProducto() {
     const disponibles = MEDIOS_PAGO.filter(m => (emprendedorActual?.medios_pago || []).includes(m.id));
 
     if (disponibles.length === 0) {
-        cont.innerHTML = `<p class="field-hint" style="margin:0;">Todavía no configuraste medios de pago en <button type="button" onclick="mostrarSeccion('perfil'); cerrarFormulario();" style="text-decoration:underline; font-weight:700; color:inherit; background:none; border:none; cursor:pointer; padding:0;">Mi Perfil</button>.</p>`;
+        cont.innerHTML = `<p class="field-hint" style="margin:0;">Todavía no configuraste medios de pago en <button type="button" onclick="cerrarFormulario('perfil')" style="text-decoration:underline; font-weight:700; color:inherit; background:none; border:none; cursor:pointer; padding:0;">Mi Perfil</button>.</p>`;
         return;
     }
 
@@ -1549,8 +1558,10 @@ function irACompletarDatos() {
 }
 
 // ============================================================
-// MODAL: ABRIR / CERRAR
+// FORMULARIO DE PRODUCTO (página completa): ABRIR / CERRAR
 // ============================================================
+// Antes era un modal; ahora es una sección más del panel (#section-producto-form)
+// que se muestra con mostrarSeccion('producto-form') y reemplaza a las demás.
 function abrirFormulario() {
     // Sin contacto cargado no se puede crear un producto nuevo.
     if (!perfilTieneContacto()) {
@@ -1564,7 +1575,7 @@ function abrirFormulario() {
     imagenesVarianteNuevas.clear();
     imagenesVarianteParaBorrar = [];
     mediosPagoProductoSeleccion = [];
-    document.getElementById('titulo-modal').textContent = 'Nuevo producto';
+    document.getElementById('titulo-form-producto').textContent = 'Nuevo producto';
     form.reset();
     document.getElementById('imagen').value = '';
     document.getElementById('activo').checked = true;
@@ -1572,71 +1583,16 @@ function abrirFormulario() {
     actualizarPreviewImagenProducto('');
     renderVariantes();
     renderMediosPagoProducto();
-    modal.classList.add('open');
-    document.body.classList.add('overflow-hidden');
-    document.getElementById('cuerpo-modal-producto').scrollTop = 0;
-    ajustarModalAlViewportVisible();
-    ajustarTextareasAutogrow();
+    mostrarSeccion('producto-form');
+    irAPasoProducto(1, true);
 }
 
-// ============================================================
-// TECLADO VIRTUAL EN MOBILE — el modal se ajusta al alto real
-// ============================================================
-// Muchos navegadores (sobre todo Android) NO achican el layout viewport
-// cuando aparece el teclado, así que el 100dvh del modal se queda igual
-// de grande y el teclado tapa el campo activo sin dejar nada para
-// scrollear. Usamos la Visual Viewport API para conocer el alto
-// realmente visible y achicar el modal a ese tamaño en tiempo real;
-// así el campo enfocado siempre queda dentro del área con scroll.
-let _rafModalForm = null;
-function ajustarModalAlViewportVisible() {
-    if (!window.visualViewport || !modal.classList.contains('open')) return;
-    // Throttle con requestAnimationFrame: durante la animación del teclado
-    // este evento puede dispararse decenas de veces por segundo, y cada
-    // corrida fuerza un recalculo de layout (cambia una CSS var de la que
-    // dependen max-height de varios elementos). Sin este throttle, eso es
-    // lo que se siente como "lag" al abrir/cerrar el teclado.
-    if (_rafModalForm) return;
-    _rafModalForm = requestAnimationFrame(() => {
-        _rafModalForm = null;
-        const vv = window.visualViewport;
-        document.documentElement.style.setProperty('--app-height', vv.height + 'px');
-        // En iOS, al abrirse el teclado el viewport visual puede desplazarse
-        // respecto del layout viewport; corregimos el offset para que el
-        // modal (position: fixed) no quede "corrido" hacia arriba o abajo.
-        modal.style.top = vv.offsetTop + 'px';
-    });
-}
-if (window.visualViewport) {
-    window.visualViewport.addEventListener('resize', ajustarModalAlViewportVisible);
-    window.visualViewport.addEventListener('scroll', ajustarModalAlViewportVisible);
-}
-
-// Al enfocar un campo dentro del modal, lo centramos en la zona visible.
-// Esperamos al evento "resize" del visualViewport (que se dispara cuando
-// el teclado termina de abrirse) en vez de un timeout fijo, con un
-// timeout de respaldo por si el teclado ya estaba abierto y no hay resize.
-document.getElementById('cuerpo-modal-producto').addEventListener('focusin', (e) => {
-    const el = e.target;
-    if (!el.matches('input, textarea, select')) return;
-
-    const centrarCampo = () => el.scrollIntoView({ block: 'center', behavior: 'smooth' });
-
-    if (window.visualViewport) {
-        window.visualViewport.addEventListener('resize', centrarCampo, { once: true });
-        setTimeout(centrarCampo, 350); // respaldo si el teclado ya estaba abierto
-    } else {
-        setTimeout(centrarCampo, 300);
-    }
-});
-
-function cerrarFormulario() {
+// destino: sección a la que se vuelve (por defecto la lista de productos)
+function cerrarFormulario(destino = 'productos') {
     // Fotos de variantes subidas en esta sesión que nunca se guardaron: no dejamos archivos huérfanos
     imagenesVarianteNuevas.forEach((thumb, url) => borrarImagenSilencioso(url, thumb));
     imagenesVarianteNuevas.clear();
     imagenesVarianteParaBorrar = [];
-    modal.classList.remove('open');
-    modal.style.top = '';
     form.reset();
     document.getElementById('imagen').value = '';
     imagenThumbUrlActual = '';
@@ -1645,8 +1601,87 @@ function cerrarFormulario() {
     variantesEliminadas = [];
     mediosPagoProductoSeleccion = [];
     actualizarPreviewImagenProducto('');
-    document.body.classList.remove('overflow-hidden');
+    mostrarSeccion(destino);
 }
+
+// ============================================================
+// FORMULARIO POR PASOS (solo mobile / tablet, hasta 1023px)
+// ============================================================
+// En pantallas chicas el formulario se muestra de a un paso por pantalla (como
+// Mercado Libre o Amazon). En escritorio se ven todas las tarjetas juntas.
+// El CSS decide qué tarjeta se ve según data-paso en #section-producto-form.
+const PASOS_PRODUCTO = [
+    { nombre: 'Información' },
+    { nombre: 'Foto' },
+    { nombre: 'Variantes (opcional)' },
+    { nombre: 'Publicación' }
+];
+let pasoFormProducto = 1;
+const mqPasosProducto = window.matchMedia('(max-width: 1023px)');
+function esModoPasosProducto() { return mqPasosProducto.matches; }
+
+// Campos obligatorios de cada paso (hoy solo el paso 1 tiene)
+function primerCampoInvalidoPaso(n) {
+    if (n !== 1) return null;
+    return ['nombre', 'precio'].map(id => document.getElementById(id)).find(c => !c.checkValidity()) || null;
+}
+
+// Antes de avanzar (o de guardar) revisa los pasos anteriores; si falta algo,
+// vuelve a ese paso y muestra el aviso del navegador en el campo.
+function validarHastaPasoProducto(destino) {
+    for (let p = 1; p < destino; p++) {
+        const invalido = primerCampoInvalidoPaso(p);
+        if (!invalido) continue;
+        irAPasoProducto(p, true);
+        invalido.reportValidity();
+        return false;
+    }
+    return true;
+}
+
+function irAPasoProducto(n, sinValidar = false) {
+    n = Math.max(1, Math.min(PASOS_PRODUCTO.length, n));
+    if (!sinValidar && n > pasoFormProducto && !validarHastaPasoProducto(n)) return;
+    pasoFormProducto = n;
+    seccionProductoForm.dataset.paso = String(n);
+    actualizarStepperProducto();
+    ajustarTextareasAutogrow();
+    if (esModoPasosProducto()) window.scrollTo(0, 0);
+}
+
+function pasoSiguienteProducto() { irAPasoProducto(pasoFormProducto + 1); }
+function pasoAnteriorProducto() {
+    if (pasoFormProducto === 1) cerrarFormulario();
+    else irAPasoProducto(pasoFormProducto - 1, true);
+}
+
+function actualizarStepperProducto() {
+    const total = PASOS_PRODUCTO.length;
+    document.getElementById('pf-paso-nombre').textContent = PASOS_PRODUCTO[pasoFormProducto - 1].nombre;
+    document.getElementById('pf-paso-texto').textContent = `Paso ${pasoFormProducto} de ${total}`;
+    document.querySelectorAll('#pf-stepper .pf-step-seg').forEach((b, i) => {
+        b.classList.toggle('hecho', i + 1 < pasoFormProducto);
+        b.classList.toggle('activo', i + 1 === pasoFormProducto);
+        if (i + 1 === pasoFormProducto) b.setAttribute('aria-current', 'step');
+        else b.removeAttribute('aria-current');
+    });
+    const atras = document.getElementById('btn-paso-atras');
+    if (atras) atras.textContent = pasoFormProducto === 1 ? 'Cancelar' : 'Atrás';
+}
+
+// "Ir" / Enter en el teclado del celular: avanza de paso en vez de guardar de golpe
+form.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' || !e.target.matches('input[type="text"], input[type="number"], input[type="url"]')) return;
+    if (!esModoPasosProducto() || pasoFormProducto >= PASOS_PRODUCTO.length) return;
+    e.preventDefault();
+    pasoSiguienteProducto();
+});
+
+// Guardar desde el último paso: si quedó algo obligatorio sin completar en un paso
+// que está oculto, el navegador no podría mostrar el aviso; lo resolvemos antes.
+document.getElementById('btn-guardar-producto').addEventListener('click', (e) => {
+    if (esModoPasosProducto() && !validarHastaPasoProducto(PASOS_PRODUCTO.length + 1)) e.preventDefault();
+});
 
 // ============================================================
 // SUBIDA DE IMAGEN — PRODUCTO (Supabase Storage)
@@ -1701,7 +1736,7 @@ async function editarProducto(id) {
     imagenesVarianteParaBorrar = [];
     mediosPagoProductoSeleccion = p.medios_pago || [];
 
-    document.getElementById('titulo-modal').textContent = 'Editar producto';
+    document.getElementById('titulo-form-producto').textContent = 'Editar producto';
     document.getElementById('nombre').value = p.nombre;
     document.getElementById('precio').value = formatoPrecioInput(p.precio);
     document.getElementById('precio_anterior').value = p.precio_anterior ? formatoPrecioInput(p.precio_anterior) : '';
@@ -1715,11 +1750,8 @@ async function editarProducto(id) {
 
     renderVariantes();
     renderMediosPagoProducto();
-    modal.classList.add('open');
-    document.body.classList.add('overflow-hidden');
-    document.getElementById('cuerpo-modal-producto').scrollTop = 0;
-    ajustarModalAlViewportVisible();
-    ajustarTextareasAutogrow();
+    mostrarSeccion('producto-form');
+    irAPasoProducto(1, true);
 }
 
 // Muestra la preview de la imagen del producto (o el placeholder si está vacía/URL inválida)
@@ -2040,6 +2072,9 @@ function actualizarAvisoSinStock() {
 // ============================================================
 form.addEventListener('submit', async (e) => {
     e.preventDefault();
+
+    // En el modo por pasos, un envío anticipado (ej. Enter en el teclado) solo avanza al paso siguiente
+    if (esModoPasosProducto() && pasoFormProducto < PASOS_PRODUCTO.length) { pasoSiguienteProducto(); return; }
 
     if (variantesEnEdicion.some(v => v._subiendoFoto)) {
         mostrarToast('Esperá a que termine de subirse la foto de la variante.', 'error');
