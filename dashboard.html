@@ -207,10 +207,10 @@
         .sidebar-scroll::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, .32); }
 
         /* ============================================================
-           MODAL DE PRODUCTO — rediseño compacto (estilo panel admin)
-           Todo escapado bajo #modal-form para no afectar el resto del sitio.
+           FORMULARIO DE PRODUCTO — página completa (antes era un modal)
+           Todo escapado bajo #section-producto-form para no afectar el resto del sitio.
            ============================================================ */
-        #modal-form {
+        #section-producto-form {
             --mp-surface: #ffffff;
             --mp-surface-2: #f8fafc;
             --mp-border: #e2e8f0;
@@ -226,115 +226,87 @@
             --mp-red-dim: rgba(220, 38, 38, 0.1);
             --mp-radius: 16px;
             --mp-radius-sm: 10px;
-
-            position: fixed; top: 0; left: 0; right: 0; z-index: 50;
-            /* Alto real ajustado por JS (visualViewport) para que el teclado
-               virtual nunca tape el campo activo. Con fallback a dvh/vh. */
-            height: 100vh;
-            height: 100dvh;
-            height: var(--app-height, 100dvh);
-            background: rgba(11, 12, 16, 0.75);
-            /* Antes: display:none / .open{display:flex}, un corte seco sin
-               transición posible (display no se anima). Ahora queda siempre
-               en flex y se muestra/oculta con opacidad + visibility, así el
-               fondo puede hacer fade in/out real al abrir y cerrar. */
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 1.25rem;
-            opacity: 0;
-            visibility: hidden;
-            pointer-events: none;
-            transition: opacity .3s cubic-bezier(0.16, 1, 0.3, 1), visibility 0s linear .3s;
-        }
-        #modal-form.open {
-            opacity: 1;
-            visibility: visible;
-            pointer-events: auto;
-            transition: opacity .3s cubic-bezier(0.16, 1, 0.3, 1), visibility 0s linear 0s;
         }
 
-        #modal-form .modal {
+        /* Layout de la página: dos columnas en escritorio (datos a la izquierda,
+           imagen y publicación a la derecha) y una sola columna en mobile. */
+        #section-producto-form .pf-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr);
+            gap: 1.25rem;
+            align-items: start;
+        }
+        #section-producto-form .pf-col { display: flex; flex-direction: column; gap: 1.25rem; min-width: 0; }
+        @media (min-width: 1024px) {
+            #section-producto-form .pf-grid { grid-template-columns: minmax(0, 1fr) 22rem; gap: 1.5rem; }
+        }
+        @media (min-width: 1280px) {
+            #section-producto-form .pf-grid { grid-template-columns: minmax(0, 1fr) 26rem; }
+        }
+        /* En mobile las dos columnas se "aplanan" para poder ordenar las tarjetas:
+           datos -> imagen -> publicación -> variantes. */
+        @media (max-width: 1023px) {
+            #section-producto-form .pf-grid { display: flex; flex-direction: column; align-items: stretch; }
+            #section-producto-form .pf-card { width: 100%; box-sizing: border-box; }
+            #section-producto-form .pf-col { display: contents; }
+            #section-producto-form .pf-info { order: 1; }
+            #section-producto-form .pf-imagen { order: 2; }
+            #section-producto-form .pf-publicacion { order: 3; }
+            #section-producto-form .pf-variantes { order: 4; }
+        }
+
+        /* Barra de acciones fija abajo (Cancelar / Guardar) */
+        #section-producto-form .pf-actions {
+            position: sticky; bottom: 0; z-index: 30;
+            display: flex; gap: 0.75rem; justify-content: flex-end;
+            margin-top: 1.5rem;
+            padding: 0.85rem 0;
+            padding-bottom: max(0.85rem, env(safe-area-inset-bottom));
+            background: linear-gradient(to top, #f1f5f9 70%, rgba(241,245,249,0));
+        }
+        #section-producto-form .pf-actions .btn { flex: none; min-width: 9rem; padding: 0.85rem 1.4rem; font-size: 0.8rem; }
+        #section-producto-form .pf-actions .btn-primary { min-width: 12rem; }
+        @media (max-width: 1023px) {
+            #section-producto-form .pf-actions .btn { flex: 1; min-width: 0; }
+            #section-producto-form .pf-actions .btn-primary { flex: 2; }
+        }
+        /* Mientras se edita un producto, la barra de navegación inferior (mobile) se
+           esconde para que no tape los botones de Guardar. */
+        body.editando-producto #bottom-nav { display: none; }
+        @media (max-width: 767px) {
+            body.editando-producto #contenido-principal { padding-bottom: 1rem; }
+        }
+
+        #section-producto-form .form-section {
             background: var(--mp-surface);
-            width: 100%;
-            max-width: 640px;
-            max-height: min(88vh, 760px);
-            max-height: min(88dvh, 760px);
-            max-height: min(calc(var(--app-height, 100dvh) * 0.88), 760px);
+            border: 1px solid var(--mp-border);
             border-radius: var(--mp-radius);
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            box-shadow: 0 24px 70px rgba(0,0,0,0.35);
-            border: 1px solid rgba(255,255,255,0.08);
-            /* Entrada/salida del panel: leve subida + escala, en sincro con
-               el fade del fondo de arriba. */
-            transform: translateY(24px) scale(0.96);
-            opacity: 0;
-            transition: transform .36s cubic-bezier(0.16, 1, 0.3, 1), opacity .28s ease-out;
+            padding: 1.25rem 1.35rem 1.35rem;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
         }
-        #modal-form.open .modal {
-            transform: translateY(0) scale(1);
-            opacity: 1;
-        }
-        @media (prefers-reduced-motion: reduce) {
-            #modal-form, #modal-form .modal { transition-duration: 0.01ms !important; }
-        }
-
-        #modal-form .modal-header {
-            flex-shrink: 0;
-            display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem;
-            padding: 1.25rem 1.5rem 1rem;
-            border-bottom: 1px solid var(--mp-border);
-        }
-        #modal-form .modal-title { font-size: 1.1rem; font-weight: 800; color: var(--mp-text); letter-spacing: -0.01em; line-height: 1.2; }
-        #modal-form .modal-subtitle { display: block; font-size: 0.75rem; color: var(--mp-text-muted); margin-top: 0.15rem; font-weight: 500; }
-        #modal-form .modal-close {
-            width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
-            background: var(--mp-surface-2); border: 1px solid var(--mp-border);
-            color: var(--mp-text-muted);
-            display: flex; align-items: center; justify-content: center;
-            cursor: pointer; transition: background-color .15s, color .15s, transform .12s cubic-bezier(0.34, 1.56, 0.64, 1);
-        }
-        #modal-form .modal-close:hover { background: var(--mp-border); color: var(--mp-text); }
-        #modal-form .modal-close:active { transform: scale(0.9); }
-
-        #modal-form .modal-body {
-            flex: 1; overflow-y: auto; overscroll-behavior: contain;
-            padding: 1.25rem 1.5rem;
-            scrollbar-width: thin;
-        }
-        #modal-form .modal-body::-webkit-scrollbar { width: 5px; }
-        #modal-form .modal-body::-webkit-scrollbar-thumb { background: var(--mp-border-light); border-radius: 99px; }
-
-        #modal-form .modal-footer {
-            flex-shrink: 0; display: flex; gap: 0.75rem;
-            padding: 1rem 1.5rem; border-top: 1px solid var(--mp-border);
-            background: var(--mp-surface);
-        }
-
-        #modal-form .form-section { margin-bottom: 1.35rem; }
-        #modal-form .form-section:last-child { margin-bottom: 0; }
-        #modal-form .form-section-title {
+        @media (max-width: 640px) { #section-producto-form .form-section { padding: 1rem 1rem 1.1rem; } }
+        #section-producto-form .pf-var-head { align-items: flex-start; gap: 1rem; margin-bottom: 0.75rem; }
+        #section-producto-form .pf-var-head .btn { white-space: nowrap; }
+        #section-producto-form .form-section-title {
             font-size: 0.65rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em;
             color: var(--mp-accent-ink);
             display: flex; align-items: center; gap: 0.5rem;
             margin-bottom: 0.85rem;
         }
-        #modal-form .form-section-title::after { content: ''; flex: 1; height: 1px; background: var(--mp-border); }
-        #modal-form .form-section-title-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.25rem; }
+        #section-producto-form .form-section-title::after { content: ''; flex: 1; height: 1px; background: var(--mp-border); }
+        #section-producto-form .form-section-title-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.25rem; }
 
-        #modal-form .form-grid { display: grid; gap: 0.85rem; }
-        #modal-form .form-grid-2 { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
-        #modal-form .form-group { display: flex; flex-direction: column; gap: 0.35rem; }
-        #modal-form .form-group.span-2 { grid-column: 1 / -1; }
+        #section-producto-form .form-grid { display: grid; gap: 0.85rem; }
+        #section-producto-form .form-grid-2 { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+        #section-producto-form .form-group { display: flex; flex-direction: column; gap: 0.35rem; }
+        #section-producto-form .form-group.span-2 { grid-column: 1 / -1; }
         /* Par de campos lado a lado (ej. Precio + Precio anterior): siempre 2 columnas parejas que ocupan
            todo el ancho, y la ayuda va debajo abarcando ambas para que el texto no se parta en varias líneas. */
-        #modal-form .form-subgrid { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 0.85rem; row-gap: 0; }
-        #modal-form .form-subgrid .field-hint { grid-column: 1 / -1; margin: 0.4rem 0 0; }
-        #modal-form label { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--mp-text-mid); }
-        #modal-form .required { color: var(--mp-accent-ink); margin-left: 2px; }
-        #modal-form .field-hint { font-size: 0.71rem; color: var(--mp-text-muted); margin: 0.15rem 0 0; }
+        #section-producto-form .form-subgrid { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 0.85rem; row-gap: 0; }
+        #section-producto-form .form-subgrid .field-hint { grid-column: 1 / -1; margin: 0.4rem 0 0; }
+        #section-producto-form label { font-size: 0.85rem; font-weight: 700; color: var(--mp-text-mid); }
+        #section-producto-form .required { color: var(--mp-accent-ink); margin-left: 2px; }
+        #section-producto-form .field-hint { font-size: 0.78rem; line-height: 1.45; color: var(--mp-text-muted); margin: 0.15rem 0 0; }
 
         /* Textareas grandes con alto auto-ajustable (bio, anuncio y descripción de producto).
            El alto lo maneja autoajustarTextarea() en dashboard.js: crece al escribir hasta un
@@ -342,14 +314,14 @@
         .ta-auto { display: block; max-height: 60vh; overflow-y: auto; resize: none; }
         .ta-bio { min-height: 12rem; }
         .ta-anuncio { min-height: 6.5rem; }
-        #modal-form textarea.ta-auto {
+        #section-producto-form textarea.ta-auto {
             min-height: 7.5rem; max-height: 16rem;
             padding: 0.75rem 0.9rem; font-size: 0.95rem; line-height: 1.5;
             resize: none;
         }
         @media (max-width: 640px) {
             .ta-bio { min-height: 10rem; }
-            #modal-form textarea.ta-auto { min-height: 6.5rem; padding: 0.6rem 0.75rem; font-size: 16px; }
+            #section-producto-form textarea.ta-auto { min-height: 6.5rem; padding: 0.6rem 0.75rem; font-size: 16px; }
         }
 
         /* Botón "volver arriba" (solo se muestra en Mis productos, ver actualizarBtnScrollTop en dashboard.js) */
@@ -379,23 +351,23 @@
             .btn-scroll-top, .btn-scroll-top.visible { transition-duration: 0.01ms !important; }
         }
 
-        #modal-form input[type="text"],
-        #modal-form input[type="number"],
-        #modal-form input[type="url"],
-        #modal-form textarea,
-        #modal-form select {
+        #section-producto-form input[type="text"],
+        #section-producto-form input[type="number"],
+        #section-producto-form input[type="url"],
+        #section-producto-form textarea,
+        #section-producto-form select {
             width: 100%;
             background: var(--mp-surface-2);
             border: 1px solid var(--mp-border);
             border-radius: var(--mp-radius-sm);
             padding: 0.65rem 0.85rem;
-            font-size: 0.875rem; font-weight: 600;
+            font-size: 1rem; font-weight: 600;
             color: var(--mp-text);
             outline: none;
             transition: border-color .15s, background .15s, box-shadow .15s;
             font-family: inherit;
         }
-        #modal-form input:focus, #modal-form textarea:focus, #modal-form select:focus {
+        #section-producto-form input:focus, #section-producto-form textarea:focus, #section-producto-form select:focus {
             background: #fff;
             border-color: var(--mp-dark);
             box-shadow: 0 0 0 4px var(--mp-accent-glow);
@@ -404,15 +376,15 @@
            ejemplo (que suelen ser largos) no compitan visualmente con los datos
            reales cargados. No toca el font-size del input en sí: en mobile ese
            tiene que quedar en 16px para evitar el zoom automático de iOS. */
-        #modal-form input::placeholder,
-        #modal-form textarea::placeholder {
+        #section-producto-form input::placeholder,
+        #section-producto-form textarea::placeholder {
             font-size: 0.85em;
             font-weight: 500;
             color: var(--mp-text-muted);
             opacity: 1;
         }
-        #modal-form textarea { resize: vertical; min-height: 64px; }
-        #modal-form select {
+        #section-producto-form textarea { resize: vertical; min-height: 64px; }
+        #section-producto-form select {
             appearance: none; -webkit-appearance: none;
             background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E");
             background-repeat: no-repeat; background-position: right 0.75rem center; background-size: 14px;
@@ -420,7 +392,7 @@
         }
 
         /* Imagen */
-        #modal-form .img-upload-area {
+        #section-producto-form .img-upload-area {
             display: block; position: relative;
             border: 1.5px dashed var(--mp-border-light);
             border-radius: var(--mp-radius-sm);
@@ -429,50 +401,50 @@
             background: var(--mp-surface-2);
             transition: all .15s;
         }
-        #modal-form .img-upload-area:hover { border-color: var(--mp-accent); background: var(--mp-accent-glow); }
-        #modal-form .img-upload-area.has-image { border-style: solid; border-color: var(--mp-accent); padding: 0.4rem; }
-        #modal-form .img-upload-area strong { display: block; font-size: 0.76rem; color: var(--mp-text); }
-        #modal-form .img-upload-area p { font-size: 0.68rem; color: var(--mp-text-muted); margin-top: 0.15rem; }
-        #modal-form .img-upload-area svg { width: 18px; height: 18px; margin: 0 auto 0.3rem; display: block; color: var(--mp-text-muted); }
-        #modal-form .img-preview { width: auto; max-width: 100%; max-height: 84px; object-fit: contain; border-radius: 8px; display: block; margin: 0 auto; }
-        #modal-form .img-upload-input { display: none; }
-        #modal-form .img-uploading {
+        #section-producto-form .img-upload-area:hover { border-color: var(--mp-accent); background: var(--mp-accent-glow); }
+        #section-producto-form .img-upload-area.has-image { border-style: solid; border-color: var(--mp-accent); padding: 0.4rem; }
+        #section-producto-form .img-upload-area strong { display: block; font-size: 0.76rem; color: var(--mp-text); }
+        #section-producto-form .img-upload-area p { font-size: 0.68rem; color: var(--mp-text-muted); margin-top: 0.15rem; }
+        #section-producto-form .img-upload-area svg { width: 18px; height: 18px; margin: 0 auto 0.3rem; display: block; color: var(--mp-text-muted); }
+        #section-producto-form .img-preview { width: auto; max-width: 100%; max-height: 84px; object-fit: contain; border-radius: 8px; display: block; margin: 0 auto; }
+        #section-producto-form .img-upload-input { display: none; }
+        #section-producto-form .img-uploading {
             position: absolute; inset: 0; background: rgba(255,255,255,0.9);
             display: flex; align-items: center; justify-content: center; gap: 0.5rem;
             font-size: 0.78rem; color: var(--mp-text-muted); border-radius: var(--mp-radius-sm);
         }
-        #modal-form .img-actions { display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 0.6rem; }
+        #section-producto-form .img-actions { display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 0.6rem; }
 
-        /* Bug fix: varias reglas de #modal-form (id+class: .img-uploading, .img-preview,
+        /* Bug fix: varias reglas de #section-producto-form (id+class: .img-uploading, .img-preview,
            .img-actions) tienen más especificidad que la utilidad .hidden de Tailwind
            (solo class), así que esos elementos quedaban visibles SIEMPRE con su
            display original, sin importar si el JS les sacaba/ponía la clase "hidden"
            (por eso aparecían el spinner y el ícono de imagen rota al mismo tiempo que
            el placeholder). Estas reglas, más específicas todavía, corrigen eso. */
-        #modal-form .img-uploading.hidden,
-        #modal-form .img-preview.hidden,
-        #modal-form .img-actions.hidden,
-        #modal-form .aviso-sin-stock-box.hidden { display: none; }
-        #modal-form .aviso-sin-stock-box {
+        #section-producto-form .img-uploading.hidden,
+        #section-producto-form .img-preview.hidden,
+        #section-producto-form .img-actions.hidden,
+        #section-producto-form .aviso-sin-stock-box.hidden { display: none; }
+        #section-producto-form .aviso-sin-stock-box {
             margin-top: 0.6rem; display: flex; align-items: flex-start; gap: 0.5rem;
             background: var(--mp-red-dim); border: 1px solid rgba(220,38,38,0.25);
             border-radius: var(--mp-radius-sm); padding: 0.6rem 0.75rem;
         }
-        #modal-form .spinner-mini { width: 16px; height: 16px; border: 2px solid var(--mp-border-light); border-top-color: var(--mp-accent-ink); border-radius: 50%; animation: mp-spin .7s linear infinite; }
+        #section-producto-form .spinner-mini { width: 16px; height: 16px; border: 2px solid var(--mp-border-light); border-top-color: var(--mp-accent-ink); border-radius: 50%; animation: mp-spin .7s linear infinite; }
         @keyframes mp-spin { to { transform: rotate(360deg); } }
 
         /* Toggle */
-        #modal-form .toggle-row {
+        #section-producto-form .toggle-row {
             display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 0.75rem;
             padding: 0.15rem 0;
         }
-        #modal-form .toggle-row label { text-transform: none; font-size: 0.8rem; font-weight: 700; color: var(--mp-text); margin: 0; }
-        #modal-form .toggle { position: relative; width: 40px; height: 22px; flex-shrink: 0; cursor: pointer; }
-        #modal-form .toggle input { opacity: 0; width: 0; height: 0; }
-        #modal-form .toggle-slider { position: absolute; inset: 0; background: var(--mp-border-light); border-radius: 99px; transition: .2s; }
-        #modal-form .toggle-slider::before { content: ''; position: absolute; width: 16px; height: 16px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: .2s; box-shadow: 0 1px 3px rgba(0,0,0,0.25); }
-        #modal-form .toggle input:checked + .toggle-slider { background: var(--mp-dark); }
-        #modal-form .toggle input:checked + .toggle-slider::before { transform: translateX(18px); }
+        #section-producto-form .toggle-row label { text-transform: none; font-size: 0.8rem; font-weight: 700; color: var(--mp-text); margin: 0; }
+        #section-producto-form .toggle { position: relative; width: 40px; height: 22px; flex-shrink: 0; cursor: pointer; }
+        #section-producto-form .toggle input { opacity: 0; width: 0; height: 0; }
+        #section-producto-form .toggle-slider { position: absolute; inset: 0; background: var(--mp-border-light); border-radius: 99px; transition: .2s; }
+        #section-producto-form .toggle-slider::before { content: ''; position: absolute; width: 16px; height: 16px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: .2s; box-shadow: 0 1px 3px rgba(0,0,0,0.25); }
+        #section-producto-form .toggle input:checked + .toggle-slider { background: var(--mp-dark); }
+        #section-producto-form .toggle input:checked + .toggle-slider::before { transform: translateX(18px); }
 
         /* Categorías de la tienda: la sangría por nivel es más chica en mobile
            para que el nombre y las acciones tengan lugar (ver renderCategoriasTienda). */
@@ -482,22 +454,22 @@
         }
 
         /* Tag picker (medios de pago) */
-        #modal-form .tag-picker { display: flex; flex-wrap: wrap; gap: 0.4rem; }
-        #modal-form .tag-chip {
+        #section-producto-form .tag-picker { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+        #section-producto-form .tag-chip {
             display: inline-flex; align-items: center; gap: 0.3rem;
             padding: 0.4rem 0.75rem; border-radius: 99px;
             border: 1.5px solid var(--mp-border-light);
             background: var(--mp-surface); color: var(--mp-text-mid);
             font-size: 0.75rem; font-weight: 700; cursor: pointer; transition: all .15s;
         }
-        #modal-form .tag-chip:hover { border-color: var(--mp-dark); color: var(--mp-text); }
-        #modal-form .tag-chip.selected { background: var(--mp-dark); border-color: var(--mp-dark); color: #fff; }
+        #section-producto-form .tag-chip:hover { border-color: var(--mp-dark); color: var(--mp-text); }
+        #section-producto-form .tag-chip.selected { background: var(--mp-dark); border-color: var(--mp-dark); color: #fff; }
 
         /* Variantes
            Cada fila se arma con celdas (.variant-cell-*) en vez de inputs sueltos,
            así en mobile podemos reacomodar el grid (ver media query) sin tocar el
            JS que genera el HTML. */
-        #modal-form .variant-header { display: none; }
+        #section-producto-form .variant-header { display: none; }
         /* Grid apilado (nombre+valor / precio / stock+borrar) fijo para
            todos los anchos: el modal nunca supera los 640px de ancho real
            aunque la ventana sea de escritorio, así que la vieja grilla de
@@ -505,7 +477,7 @@
            botones "Con stock/Sin stock" sin lugar y desbordando encima
            de la X de borrar variante. Usar siempre el layout apilado
            evita ese solapamiento. */
-        #modal-form .variant-row {
+        #section-producto-form .variant-row {
             display: grid;
             grid-template-columns: 72px minmax(0, 1fr) 34px;
             grid-template-areas:
@@ -517,9 +489,9 @@
             background: var(--mp-surface-2); border: 1px solid var(--mp-border); border-radius: var(--mp-radius-sm);
             padding: 0.55rem; margin-top: 0.5rem; transition: opacity .15s;
         }
-        #modal-form .variant-row.sin-stock { opacity: 0.75; }
+        #section-producto-form .variant-row.sin-stock { opacity: 0.75; }
         /* Con la opción "Usar la foto del producto" se suma una fila entre nombre/valor y precio */
-        #modal-form .variant-row.con-usar {
+        #section-producto-form .variant-row.con-usar {
             grid-template-areas:
                 "foto nombre nombre"
                 "foto valor valor"
@@ -527,184 +499,177 @@
                 "precio precio precio"
                 "stock stock remove";
         }
-        #modal-form .variant-cell-usar { grid-area: usar; }
-        #modal-form .variant-usar {
+        #section-producto-form .variant-cell-usar { grid-area: usar; }
+        #section-producto-form .variant-usar {
             width: 100%; text-align: left; padding: 0.42rem 0.65rem; border-radius: 8px;
             border: 1px dashed var(--mp-border-light); background: transparent;
             color: var(--mp-accent-ink); font-size: 0.7rem; font-weight: 700; cursor: pointer; transition: all .15s;
         }
-        #modal-form .variant-usar:hover { border-color: var(--mp-accent); background: var(--mp-accent-glow); }
-        #modal-form .variant-usar.on { border-style: solid; background: rgba(22,163,74,0.1); color: #16a34a; border-color: rgba(22,163,74,0.35); }
+        #section-producto-form .variant-usar:hover { border-color: var(--mp-accent); background: var(--mp-accent-glow); }
+        #section-producto-form .variant-usar.on { border-style: solid; background: rgba(22,163,74,0.1); color: #16a34a; border-color: rgba(22,163,74,0.35); }
         /* Resalte breve de la variante recién agregada */
-        #modal-form .variant-row-nueva { animation: variant-row-flash 1.2s ease-out; }
+        #section-producto-form .variant-row-nueva { animation: variant-row-flash 1.2s ease-out; }
         @keyframes variant-row-flash {
             0%   { border-color: var(--mp-accent); box-shadow: 0 0 0 3px var(--mp-accent-glow); }
             100% { border-color: var(--mp-border); box-shadow: 0 0 0 0 transparent; }
         }
         @media (prefers-reduced-motion: reduce) {
-            #modal-form .variant-row-nueva { animation: none; }
+            #section-producto-form .variant-row-nueva { animation: none; }
         }
-        #modal-form .variant-cell { min-width: 0; }
-        #modal-form .variant-cell-foto { grid-area: foto; position: relative; align-self: stretch; min-height: 72px; }
-        #modal-form .variant-foto {
+        #section-producto-form .variant-cell { min-width: 0; }
+        #section-producto-form .variant-cell-foto { grid-area: foto; position: relative; align-self: stretch; min-height: 72px; }
+        #section-producto-form .variant-foto {
             position: absolute; inset: 0; box-sizing: border-box;
             display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.2rem;
             border: 1.5px dashed var(--mp-border-light); border-radius: 9px; background: var(--mp-surface);
             color: var(--mp-text-muted); font-size: 0.62rem; font-weight: 700; letter-spacing: 0.02em;
             cursor: pointer; overflow: hidden; transition: all .15s;
         }
-        #modal-form label.variant-foto:hover { border-color: var(--mp-accent); background: var(--mp-accent-glow); color: var(--mp-accent-ink); }
-        #modal-form .variant-foto.tiene { border-style: solid; border-color: var(--mp-border); }
-        #modal-form .variant-foto img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-        #modal-form .variant-foto-quitar {
+        #section-producto-form label.variant-foto:hover { border-color: var(--mp-accent); background: var(--mp-accent-glow); color: var(--mp-accent-ink); }
+        #section-producto-form .variant-foto.tiene { border-style: solid; border-color: var(--mp-border); }
+        #section-producto-form .variant-foto img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+        #section-producto-form .variant-foto-quitar {
             position: absolute; top: 4px; right: 4px; z-index: 2; width: 22px; height: 22px; padding: 0;
             border: none; border-radius: 50%; background: rgba(9, 9, 11, 0.72); color: #fff;
             font-size: 0.6rem; line-height: 1; display: flex; align-items: center; justify-content: center; cursor: pointer;
         }
-        #modal-form .variant-foto-quitar:hover { background: var(--mp-red); }
-        #modal-form .variant-foto-badge {
+        #section-producto-form .variant-foto-quitar:hover { background: var(--mp-red); }
+        #section-producto-form .variant-foto-badge {
             position: absolute; left: 0; right: 0; bottom: 0; padding: 2px 0; text-align: center;
             background: rgba(9, 9, 11, 0.62); color: #fff; font-size: 0.55rem; font-weight: 700; letter-spacing: 0.03em;
         }
-        #modal-form .variant-foto-spinner {
+        #section-producto-form .variant-foto-spinner {
             position: absolute; inset: 0; background: rgba(255, 255, 255, 0.72);
             display: flex; align-items: center; justify-content: center;
         }
-        #modal-form .variant-foto-spinner::after {
+        #section-producto-form .variant-foto-spinner::after {
             content: ''; width: 20px; height: 20px; border-radius: 50%;
             border: 2.5px solid rgba(9, 9, 11, 0.15); border-top-color: var(--mp-accent);
             animation: variant-foto-spin .7s linear infinite;
         }
         @keyframes variant-foto-spin { to { transform: rotate(360deg); } }
-        #modal-form .variant-cell-nombre { grid-area: nombre; }
-        #modal-form .variant-cell-valor { grid-area: valor; }
-        #modal-form .variant-cell-precio { grid-area: precio; }
-        #modal-form .variant-cell-stock { grid-area: stock; }
-        #modal-form .variant-cell-remove { grid-area: remove; justify-self: end; align-self: center; }
-        #modal-form .variant-row input { padding: 0.5rem 0.6rem; font-size: 0.78rem; width: 100%; }
-        #modal-form .variant-cell-precio { display: flex; flex-direction: column; gap: 0.2rem; min-width: 0; }
-        #modal-form .variant-total-hint { font-size: 0.62rem; font-weight: 700; color: var(--mp-text-muted); white-space: nowrap; padding-left: 0.15rem; }
-        #modal-form .variant-cell-remove { display: flex; align-items: center; justify-content: flex-end; }
-        #modal-form .variant-remove { width: 30px; height: 30px; border-radius: 8px; border: none; background: transparent; color: var(--mp-text-muted); cursor: pointer; font-size: 0.85rem; display: flex; align-items: center; justify-content: center; transition: all .15s; flex-shrink: 0; }
-        #modal-form .variant-remove:hover { background: var(--mp-red-dim); color: var(--mp-red); }
+        #section-producto-form .variant-cell-nombre { grid-area: nombre; }
+        #section-producto-form .variant-cell-valor { grid-area: valor; }
+        #section-producto-form .variant-cell-precio { grid-area: precio; }
+        #section-producto-form .variant-cell-stock { grid-area: stock; }
+        #section-producto-form .variant-cell-remove { grid-area: remove; justify-self: end; align-self: center; }
+        #section-producto-form .variant-row input { padding: 0.5rem 0.6rem; font-size: 0.78rem; width: 100%; }
+        #section-producto-form .variant-cell-precio { display: flex; flex-direction: column; gap: 0.2rem; min-width: 0; }
+        #section-producto-form .variant-total-hint { font-size: 0.62rem; font-weight: 700; color: var(--mp-text-muted); white-space: nowrap; padding-left: 0.15rem; }
+        #section-producto-form .variant-cell-remove { display: flex; align-items: center; justify-content: flex-end; }
+        #section-producto-form .variant-remove { width: 30px; height: 30px; border-radius: 8px; border: none; background: transparent; color: var(--mp-text-muted); cursor: pointer; font-size: 0.85rem; display: flex; align-items: center; justify-content: center; transition: all .15s; flex-shrink: 0; }
+        #section-producto-form .variant-remove:hover { background: var(--mp-red-dim); color: var(--mp-red); }
 
         /* "Con stock / Sin stock" por variante: dos botones separados y
            siempre visibles — se toca directamente el que corresponde,
            sin interruptores ni estados que haya que interpretar. El
            botón activo queda resaltado en color. */
-        #modal-form .variant-stock-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; }
-        #modal-form .variant-stock-btn {
+        #section-producto-form .variant-stock-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; }
+        #section-producto-form .variant-stock-btn {
             display: flex; align-items: center; justify-content: center; gap: 0.35rem;
             padding: 0.55rem 0.4rem; border-radius: 8px; border: 1.5px solid var(--mp-border);
             background: var(--mp-surface-2); color: var(--mp-text-muted);
             font-size: 0.64rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.02em;
             cursor: pointer; transition: all .15s; white-space: nowrap;
         }
-        #modal-form .variant-stock-btn-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; opacity: 0.4; flex-shrink: 0; }
-        #modal-form .variant-stock-btn.activo-on { background: rgba(22,163,74,0.1); color: #16a34a; border-color: rgba(22,163,74,0.35); }
-        #modal-form .variant-stock-btn.activo-on .variant-stock-btn-dot { opacity: 1; }
-        #modal-form .variant-stock-btn.activo-off { background: var(--mp-red-dim); color: var(--mp-red); border-color: rgba(220,38,38,0.35); }
-        #modal-form .variant-stock-btn.activo-off .variant-stock-btn-dot { opacity: 1; }
-        #modal-form .variant-stock-btn:active { transform: scale(0.96); }
+        #section-producto-form .variant-stock-btn-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; opacity: 0.4; flex-shrink: 0; }
+        #section-producto-form .variant-stock-btn.activo-on { background: rgba(22,163,74,0.1); color: #16a34a; border-color: rgba(22,163,74,0.35); }
+        #section-producto-form .variant-stock-btn.activo-on .variant-stock-btn-dot { opacity: 1; }
+        #section-producto-form .variant-stock-btn.activo-off { background: var(--mp-red-dim); color: var(--mp-red); border-color: rgba(220,38,38,0.35); }
+        #section-producto-form .variant-stock-btn.activo-off .variant-stock-btn-dot { opacity: 1; }
+        #section-producto-form .variant-stock-btn:active { transform: scale(0.96); }
 
-        #modal-form .empty-variants { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; border: 1.5px dashed var(--mp-border-light); border-radius: var(--mp-radius-sm); padding: 0.75rem 0.9rem; }
-        #modal-form .empty-variants p { font-size: 0.75rem; color: var(--mp-text-muted); }
-        #modal-form .empty-variants button { font-size: 0.75rem; font-weight: 700; color: var(--mp-accent-ink); background: none; border: none; cursor: pointer; text-decoration: underline; white-space: nowrap; }
+        #section-producto-form .empty-variants { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; border: 1.5px dashed var(--mp-border-light); border-radius: var(--mp-radius-sm); padding: 0.75rem 0.9rem; }
+        #section-producto-form .empty-variants p { font-size: 0.75rem; color: var(--mp-text-muted); }
+        #section-producto-form .empty-variants button { font-size: 0.75rem; font-weight: 700; color: var(--mp-accent-ink); background: none; border: none; cursor: pointer; text-decoration: underline; white-space: nowrap; }
 
         /* Botones */
-        #modal-form .btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem; font-size: 0.75rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; padding: 0.7rem 1rem; border-radius: var(--mp-radius-sm); border: none; cursor: pointer; transition: background-color .15s, color .15s, border-color .15s, opacity .15s, transform .12s cubic-bezier(0.34, 1.56, 0.64, 1); }
-        #modal-form .btn:active:not(:disabled) { transform: scale(0.96); }
-        #modal-form .btn-primary { background: var(--mp-dark); color: #fff; flex: 2; }
-        #modal-form .btn-primary:hover { background: var(--mp-accent); color: #fff; }
-        #modal-form .btn-primary:disabled { opacity: 0.6; cursor: default; }
-        #modal-form .btn-ghost { background: var(--mp-surface-2); color: var(--mp-text-mid); border: 1px solid var(--mp-border); flex: 1; }
-        #modal-form .btn-ghost:hover { border-color: var(--mp-border-light); color: var(--mp-text); }
-        #modal-form .btn-danger { background: var(--mp-red-dim); color: var(--mp-red); border: 1px solid rgba(220,38,38,0.2); }
-        #modal-form .btn-danger:hover { background: rgba(220,38,38,0.18); }
-        #modal-form .btn-sm { padding: 0.4rem 0.7rem; font-size: 0.68rem; flex: none; }
+        #section-producto-form .btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem; font-size: 0.75rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; padding: 0.7rem 1rem; border-radius: var(--mp-radius-sm); border: none; cursor: pointer; transition: background-color .15s, color .15s, border-color .15s, opacity .15s, transform .12s cubic-bezier(0.34, 1.56, 0.64, 1); }
+        #section-producto-form .btn:active:not(:disabled) { transform: scale(0.96); }
+        #section-producto-form .btn-primary { background: var(--mp-dark); color: #fff; flex: 2; }
+        #section-producto-form .btn-primary:hover { background: var(--mp-accent); color: #fff; }
+        #section-producto-form .btn-primary:disabled { opacity: 0.6; cursor: default; }
+        #section-producto-form .btn-ghost { background: var(--mp-surface-2); color: var(--mp-text-mid); border: 1px solid var(--mp-border); flex: 1; }
+        #section-producto-form .btn-ghost:hover { border-color: var(--mp-border-light); color: var(--mp-text); }
+        #section-producto-form .btn-danger { background: var(--mp-red-dim); color: var(--mp-red); border: 1px solid rgba(220,38,38,0.2); }
+        #section-producto-form .btn-danger:hover { background: rgba(220,38,38,0.18); }
+        #section-producto-form .btn-sm { padding: 0.4rem 0.7rem; font-size: 0.68rem; flex: none; }
 
-        /* Responsive: bottom sheet en mobile + fix de teclado/zoom iOS */
+        /* Mobile: el tamaño de letra de los campos queda en 16px para evitar el zoom
+           automático de iOS al enfocar un input. */
         @media (max-width: 640px) {
-            #modal-form { padding: 0; align-items: flex-end; }
-            /* Altura real: vh en mobile no descuenta la barra de direcciones del navegador,
-               por eso el sheet terminaba "comiéndose" la pantalla y tapando el botón Guardar.
-               dvh sí la descuenta; se deja vh como fallback para navegadores viejos. */
-            #modal-form .modal {
-                border-radius: 18px 18px 0 0;
-                max-height: 96vh;
-                max-height: 92dvh;
-                max-width: 100%;
-                position: relative;
-                /* En mobile el panel entra como hoja deslizando desde abajo
-                   en vez de aparecer con escala, que se siente más natural
-                   para un bottom sheet. */
-                transform: translateY(100%);
+            #section-producto-form input[type="text"],
+            #section-producto-form input[type="number"],
+            #section-producto-form input[type="url"],
+            #section-producto-form textarea,
+            #section-producto-form select { font-size: 16px; }
+            #section-producto-form .variant-row input { font-size: 16px; }
+            #section-producto-form .pf-var-head { flex-direction: column; }
+        }
+
+        /* Imagen del producto: en la página hay lugar para una vista previa grande */
+        #section-producto-form .img-upload-area { padding: 1.5rem 1rem; }
+        #section-producto-form .img-upload-area.has-image { padding: 0.6rem; }
+        #section-producto-form .img-upload-area svg { width: 30px; height: 30px; margin-bottom: 0.5rem; }
+        #section-producto-form .img-upload-area strong { font-size: 0.9rem; }
+        #section-producto-form .img-upload-area p { font-size: 0.78rem; }
+        #section-producto-form .img-preview { max-height: 260px; border-radius: 10px; }
+
+        /* Variantes: con el ancho de la página la fila cabe en dos renglones */
+        @media (min-width: 768px) {
+            #section-producto-form .variant-row {
+                grid-template-columns: 72px minmax(0, 1fr) minmax(0, 1fr) 34px;
+                grid-template-areas:
+                    "foto nombre valor remove"
+                    "foto precio stock stock";
+                padding: 0.75rem; gap: 0.6rem;
             }
-            #modal-form.open .modal {
-                transform: translateY(0);
+            #section-producto-form .variant-row.con-usar {
+                grid-template-areas:
+                    "foto nombre valor remove"
+                    "foto usar usar usar"
+                    "foto precio stock stock";
             }
-            /* Manija visual: deja claro que es una hoja que se puede deslizar/cerrar, no la pantalla entera */
-            #modal-form .modal::before {
-                content: '';
-                position: absolute; top: 0.45rem; left: 50%; transform: translateX(-50%);
-                width: 34px; height: 4px; border-radius: 99px; background: var(--mp-border-light);
-            }
-            #modal-form .modal-header { padding: 1.1rem 1rem 0.55rem; }
-            #modal-form .modal-title { font-size: 0.88rem; }
-            #modal-form .modal-subtitle { font-size: 0.65rem; margin-top: 0.1rem; }
-            #modal-form .modal-close { width: 24px; height: 24px; }
-            #modal-form .modal-close svg { width: 10px; height: 10px; }
-            #modal-form .modal-body { padding: 0.6rem 1rem; }
-            #modal-form .modal-footer {
-                padding: 0.5rem 1rem;
-                gap: 0.5rem;
-                /* Espacio para el home-indicator de iOS, así los botones no quedan pegados/tapados */
-                padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
-            }
-            #modal-form .form-section { margin-bottom: 0.4rem; }
-            #modal-form .form-section-title { font-size: 0.55rem; margin-bottom: 0.3rem; }
-            #modal-form .form-grid { gap: 0.3rem; }
-            #modal-form .form-grid-2 { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); }
-            #modal-form .form-group { gap: 0.18rem; }
-            #modal-form .form-subgrid { column-gap: 0.3rem; }
-            #modal-form .form-subgrid .field-hint { margin-top: 0.2rem; }
-            #modal-form label { font-size: 0.6rem; }
-            #modal-form .field-hint { font-size: 0.6rem; margin-top: 0.08rem; }
-            #modal-form input[type="text"],
-            #modal-form input[type="number"],
-            #modal-form input[type="url"],
-            #modal-form textarea,
-            #modal-form select {
-                font-size: 16px; /* evita el zoom automático de iOS al enfocar, que es lo que descuadra todo con el teclado abierto */
-                padding: 0.32rem 0.55rem;
-                border-radius: 8px;
-            }
-            #modal-form textarea { min-height: 30px; }
-            #modal-form select { padding-right: 1.8rem; background-size: 11px; }
-            #modal-form .img-upload-area { padding: 0.4rem 0.55rem; border-radius: 8px; }
-            #modal-form .img-upload-area svg { width: 14px; height: 14px; margin-bottom: 0.15rem; }
-            #modal-form .img-upload-area strong { font-size: 0.66rem; }
-            #modal-form .img-upload-area p { font-size: 0.58rem; margin-top: 0.1rem; }
-            #modal-form .img-preview { max-height: 64px; }
-            #modal-form .toggle-row { padding: 0.1rem 0; gap: 0.5rem; }
-            #modal-form .toggle-row label { font-size: 0.72rem; }
-            #modal-form .toggle { width: 34px; height: 19px; }
-            #modal-form .toggle-slider::before { width: 13px; height: 13px; }
-            #modal-form .toggle input:checked + .toggle-slider::before { transform: translateX(15px); }
-            #modal-form .tag-chip { padding: 0.26rem 0.5rem; font-size: 0.65rem; }
-            #modal-form .btn { padding: 0.5rem 0.7rem; font-size: 0.66rem; }
-            #modal-form .btn-sm { padding: 0.28rem 0.5rem; font-size: 0.6rem; }
-            /* El grid apilado (nombre+valor / precio / stock+borrar) ya es
-               la base para todos los anchos; acá solo achicamos un poco
-               más el padding para pantallas de celular. */
-            #modal-form .variant-row { padding: 0.55rem; margin-top: 0.45rem; border-radius: 10px; }
-            #modal-form .variant-row input { padding: 0.45rem 0.55rem; font-size: 16px; border-radius: 7px; }
-            #modal-form .variant-remove { width: 34px; height: 34px; }
-            #modal-form .variant-stock-btn { padding: 0.5rem 0.3rem; font-size: 0.6rem; gap: 0.25rem; }
-            #modal-form .variant-total-hint { font-size: 0.58rem; }
-            #modal-form .empty-variants { padding: 0.45rem 0.6rem; }
-            #modal-form .empty-variants p { font-size: 0.65rem; }
-            #modal-form .empty-variants button { font-size: 0.65rem; }
+        }
+        /* ------------------------------------------------------------
+           FORMULARIO POR PASOS (mobile y tablet, hasta 1023px)
+           Un paso por pantalla, con barra de progreso arriba y botones fijos
+           abajo. En escritorio se ve todo junto en dos columnas.
+           El paso activo lo marca data-paso en la sección (ver irAPasoProducto).
+           ------------------------------------------------------------ */
+        #section-producto-form .pf-stepper { display: none; }
+        #section-producto-form #btn-paso-atras,
+        #section-producto-form #btn-paso-siguiente { display: none; }
+        @keyframes pf-paso-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+        @media (max-width: 1023px) {
+            #section-producto-form .pf-stepper { display: block; margin-bottom: 1rem; }
+            #section-producto-form .pf-stepper-top { display: flex; align-items: baseline; justify-content: space-between; gap: 0.75rem; margin-bottom: 0.2rem; }
+            #section-producto-form .pf-stepper-top strong { font-size: 1.15rem; font-weight: 800; color: var(--mp-text); letter-spacing: -0.01em; }
+            #section-producto-form .pf-stepper-top span { font-size: 0.8rem; font-weight: 700; color: var(--mp-text-muted); white-space: nowrap; }
+            #section-producto-form .pf-stepper-bar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.4rem; }
+            /* El botón mide 24px de alto para que sea fácil de tocar; la barra visible es la de ::before */
+            #section-producto-form .pf-step-seg { position: relative; height: 24px; padding: 0; border: 0; background: none; cursor: pointer; }
+            #section-producto-form .pf-step-seg::before { content: ''; position: absolute; left: 0; right: 0; top: 50%; height: 6px; margin-top: -3px; border-radius: 99px; background: var(--mp-border-light); transition: background-color .2s; }
+            #section-producto-form .pf-step-seg.hecho::before { background: var(--mp-accent); }
+            #section-producto-form .pf-step-seg.activo::before { background: var(--mp-dark); }
+
+            /* Solo se ve la tarjeta del paso actual */
+            #section-producto-form .pf-card { display: none; }
+            #section-producto-form[data-paso="1"] .pf-info,
+            #section-producto-form[data-paso="2"] .pf-imagen,
+            #section-producto-form[data-paso="3"] .pf-variantes,
+            #section-producto-form[data-paso="4"] .pf-publicacion { display: block; animation: pf-paso-in .25s ease-out; }
+
+            /* Botones: Atrás/Cancelar + Continuar; Guardar solo en el último paso */
+            #section-producto-form .pf-btn-cancelar { display: none; }
+            #section-producto-form #btn-paso-atras,
+            #section-producto-form #btn-paso-siguiente { display: inline-flex; }
+            #section-producto-form #btn-guardar-producto { display: none; }
+            #section-producto-form[data-paso="4"] #btn-paso-siguiente { display: none; }
+            #section-producto-form[data-paso="4"] #btn-guardar-producto { display: inline-flex; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            #section-producto-form .pf-card { animation: none !important; }
         }
         /* ============================================================
            SECCIÓN QR — cartel/sticker/historia para imprimir
@@ -2047,6 +2012,149 @@
                 </div>
             </section>
 
+            <!-- SECCIÓN: NUEVO / EDITAR PRODUCTO (página completa, reemplaza al viejo modal) -->
+            <section id="section-producto-form" data-paso="1" class="hidden animate-fade-in">
+                <header class="mb-4 md:mb-8 pb-4 md:pb-6 border-b border-slate-200/80">
+                    <button type="button" onclick="cerrarFormulario()" class="inline-flex items-center gap-1.5 text-sm font-bold text-slate-500 hover:text-obsidian transition-colors mb-4 -ml-1 px-1 py-1 rounded-lg">
+                        <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+                        Volver a productos
+                    </button>
+                    <h1 id="titulo-form-producto" class="text-2xl md:text-4xl font-extrabold tracking-tight text-slate-900">Nuevo producto</h1>
+                    <p class="hidden md:block text-slate-500 text-sm md:text-base mt-2">Completá los datos y especificaciones de venta.</p>
+                </header>
+
+                <form id="form-producto" class="pf-form">
+                    <!-- Pasos (solo mobile / tablet): barra de progreso + nombre del paso actual -->
+                    <div id="pf-stepper" class="pf-stepper" role="group" aria-label="Pasos del formulario">
+                        <div class="pf-stepper-top">
+                            <strong id="pf-paso-nombre">Información</strong>
+                            <span id="pf-paso-texto">Paso 1 de 4</span>
+                        </div>
+                        <div class="pf-stepper-bar">
+                            <button type="button" class="pf-step-seg activo" onclick="irAPasoProducto(1)" aria-label="Ir al paso 1: Información"></button>
+                            <button type="button" class="pf-step-seg" onclick="irAPasoProducto(2)" aria-label="Ir al paso 2: Foto"></button>
+                            <button type="button" class="pf-step-seg" onclick="irAPasoProducto(3)" aria-label="Ir al paso 3: Variantes"></button>
+                            <button type="button" class="pf-step-seg" onclick="irAPasoProducto(4)" aria-label="Ir al paso 4: Publicación"></button>
+                        </div>
+                    </div>
+
+                    <div id="cuerpo-form-producto" class="pf-grid">
+                        <div class="pf-col pf-col-main">
+        <!-- SECCIÓN: Información principal -->
+                        <div class="form-section pf-card pf-info">
+                            <div class="form-section-title">Información principal</div>
+                            <div class="form-grid form-grid-2">
+                                <div class="form-group span-2">
+                                    <label>Nombre del producto <span class="required">*</span></label>
+                                    <input type="text" id="nombre" required placeholder="Nombre claro y fácil de reconocer">
+                                </div>
+                                <div class="form-subgrid span-2">
+                                    <div class="form-group">
+                                        <label>Precio ($) <span class="required">*</span></label>
+                                        <input type="text" inputmode="decimal" id="precio" required placeholder="0"
+                                            oninput="sanitizarInputPrecio(this); actualizarTodosLosTotalesVariantes()" onblur="formatearInputPrecio(this)">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Precio anterior ($)</label>
+                                        <input type="text" inputmode="decimal" id="precio_anterior" placeholder="Opcional"
+                                            oninput="sanitizarInputPrecio(this)" onblur="formatearInputPrecio(this)">
+                                    </div>
+                                    <p class="field-hint">Precio anterior es opcional. Si lo completás (y es mayor al precio actual), en la tienda aparece tachado con un cartel de % OFF.</p>
+                                </div>
+                                <div class="form-group span-2">
+                                    <label for="categoria-tienda">Categoría</label>
+                                    <select id="categoria-tienda">
+                                        <option value="">Sin categoría</option>
+                                    </select>
+                                    <p id="hint-categoria-tienda" class="field-hint">Opcional. Es el menú propio de tu tienda, con las secciones que vos elijas. Se arma en «Mis categorías».</p>
+                                </div>
+                                <div class="form-group span-2">
+                                    <label>Descripción corta</label>
+                                    <textarea id="descripcion" rows="5" data-autogrow class="ta-auto" placeholder="Contale al comprador qué es, para qué sirve o qué lo hace especial"></textarea>
+                                </div>
+                            </div>
+                        </div>
+
+        <!-- SECCIÓN VARIANTES -->
+                        <div class="form-section pf-card pf-variantes">
+                            <div class="form-section-title">Variantes</div>
+                            <div class="form-section-title-row pf-var-head">
+                                <p class="field-hint">Opcional. Sirve para ofrecer distintas opciones del mismo producto, cada una con su propio precio, stock y foto.</p>
+                                <button type="button" onclick="agregarFilaVariante()" class="btn btn-ghost btn-sm">+ Agregar variante</button>
+                            </div>
+                            <div id="lista-variantes"></div>
+                            <div id="aviso-sin-stock" class="aviso-sin-stock-box hidden">
+                                <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="var(--mp-red)" stroke-width="2" style="flex-shrink:0; margin-top:1px;"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m0 3.75h.008M4.93 19h14.14c1.5 0 2.44-1.63 1.68-2.93L13.68 4.35c-.75-1.28-2.6-1.28-3.35 0L3.25 16.07C2.49 17.37 3.43 19 4.93 19z"/></svg>
+                                <p style="font-size: 0.72rem; color: var(--mp-red); font-weight: 600; line-height: 1.4; margin: 0;">Todas las variantes están sin stock: al guardar, el producto se va a ocultar automáticamente de la tienda.</p>
+                            </div>
+                        </div>
+                        </div>
+                        <div class="pf-col pf-col-side">
+        <!-- SECCIÓN: Imagen -->
+                        <div class="form-section pf-card pf-imagen">
+                            <div class="form-section-title">Imagen</div>
+                            <div class="form-group">
+                                <label class="img-upload-area" id="imagen-producto-area" for="imagen-producto-input">
+                                    <div id="imagen-producto-preview-placeholder">
+                                        <svg width="30" height="30" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                                        <strong>Hacé clic para subir</strong>
+                                        <p>JPG, PNG o WebP · máx 3MB</p>
+                                    </div>
+                                    <img id="imagen-producto-preview" class="img-preview hidden" src="" alt="Vista previa">
+                                    <div id="imagen-producto-spinner" class="img-uploading hidden">
+                                        <div class="spinner-mini"></div>
+                                        <span>Subiendo imagen…</span>
+                                    </div>
+                                </label>
+                                <input type="file" id="imagen-producto-input" class="img-upload-input" accept="image/jpeg,image/jpg,image/png,image/webp" onchange="manejarSeleccionImagenProducto(event)">
+                                <div class="img-actions hidden" id="imagen-producto-actions">
+                                    <button type="button" class="btn btn-ghost btn-sm" onclick="event.preventDefault(); document.getElementById('imagen-producto-input').click()">Cambiar</button>
+                                    <button type="button" class="btn btn-danger btn-sm" onclick="quitarImagenProducto()">Quitar</button>
+                                </div>
+                                <input type="hidden" id="imagen">
+                            </div>
+                        </div>
+
+        <!-- SECCIÓN: Etiqueta y publicación -->
+                        <div class="form-section pf-card pf-publicacion">
+                            <div class="form-section-title">Etiqueta y publicación</div>
+                            <div class="form-grid">
+                                <div class="form-group toggle-row">
+                                    <label style="margin-bottom: 0;">Con stock</label>
+                                    <label class="toggle">
+                                        <input type="checkbox" id="activo" checked>
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+                                <div class="form-group toggle-row">
+                                    <label style="margin-bottom: 0;">Marcar como nuevo</label>
+                                    <label class="toggle">
+                                        <input type="checkbox" id="nuevo">
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+                                <p class="field-hint" id="hint-nuevo" style="margin-top: -0.4rem;">El cartel "Nuevo" se muestra en la tienda por 5 días desde que lo activás; después desaparece solo.</p>
+                                <div class="form-group" id="medios-pago-producto-wrap">
+                                    <label>Medios de pago aceptados</label>
+                                    <p class="field-hint">Opcional. Si no marcás ninguno, se muestran todos los medios configurados en tu perfil.</p>
+                                    <div id="medios-pago-producto" class="tag-picker"></div>
+                                </div>
+                            </div>
+                        </div>
+                        </div>
+                    </div>
+
+                    <!-- Barra de acciones: queda fija abajo mientras se scrollea -->
+                    <div class="pf-actions">
+                        <!-- Escritorio: Cancelar + Guardar. Mobile (por pasos): Atrás/Cancelar + Continuar, y Guardar recién en el último paso -->
+                        <button type="button" onclick="cerrarFormulario()" class="btn btn-ghost pf-btn-cancelar">Cancelar</button>
+                        <button type="button" id="btn-paso-atras" onclick="pasoAnteriorProducto()" class="btn btn-ghost">Cancelar</button>
+                        <button type="button" id="btn-paso-siguiente" onclick="pasoSiguienteProducto()" class="btn btn-primary">Continuar</button>
+                        <button type="submit" id="btn-guardar-producto" class="btn btn-primary">Guardar</button>
+                    </div>
+                </form>
+            </section>
+
         </main>
     </div>
 
@@ -2066,136 +2174,6 @@
         <button type="button" id="bnav-qr" data-bnav="qr" onclick="mostrarSeccion('qr')" class="bnav-btn"><span class="bnav-ico"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.1" d="M4 4h6v6H4V4zm10 0h6v6h-6V4zM4 14h6v6H4v-6zm11 0h1.5v1.5H15V14zm3 0h1.5v1.5H18V14zm-3 3h1.5v1.5H15V17zm3 0h1.5v1.5H18V17zm-1.5 3H15v-1.5m4.5 1.5H18v-1.5"/></svg></span><span class="bnav-label">Compartir</span></button>
         <button type="button" id="bnav-mas" data-bnav="mas" onclick="abrirSidebarMobile()" aria-haspopup="dialog" class="bnav-btn"><span class="bnav-ico"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.1" d="M4 6h16M4 12h16M4 18h16"/></svg></span><span class="bnav-label">Menú</span></button>
     </nav>
-
-    <!-- MODAL PRODUCTO -->
-    <div id="modal-form">
-        <form id="form-producto" class="modal modal-lg">
-
-            <!-- Encabezado fijo -->
-            <div class="modal-header">
-                <div class="modal-header-left">
-                    <h2 id="titulo-modal" class="modal-title">Nuevo producto</h2>
-                    <span class="modal-subtitle">Completá los datos y especificaciones de venta</span>
-                </div>
-                <button type="button" onclick="cerrarFormulario()" class="modal-close" aria-label="Cerrar">
-                    <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
-                </button>
-            </div>
-
-            <!-- Cuerpo con scroll interno (único que scrollea) -->
-            <div id="cuerpo-modal-producto" class="modal-body">
-
-                <!-- SECCIÓN: Información principal -->
-                <div class="form-section">
-                    <div class="form-section-title">Información principal</div>
-                    <div class="form-grid form-grid-2">
-                        <div class="form-group span-2">
-                            <label>Nombre del producto <span class="required">*</span></label>
-                            <input type="text" id="nombre" required placeholder="Nombre claro y fácil de reconocer">
-                        </div>
-                        <div class="form-subgrid span-2">
-                            <div class="form-group">
-                                <label>Precio ($) <span class="required">*</span></label>
-                                <input type="text" inputmode="decimal" id="precio" required placeholder="0"
-                                    oninput="sanitizarInputPrecio(this); actualizarTodosLosTotalesVariantes()" onblur="formatearInputPrecio(this)">
-                            </div>
-                            <div class="form-group">
-                                <label>Precio anterior ($)</label>
-                                <input type="text" inputmode="decimal" id="precio_anterior" placeholder="Opcional"
-                                    oninput="sanitizarInputPrecio(this)" onblur="formatearInputPrecio(this)">
-                            </div>
-                            <p class="field-hint">Precio anterior es opcional. Si lo completás (y es mayor al precio actual), en la tienda aparece tachado con un cartel de % OFF.</p>
-                        </div>
-                        <div class="form-group span-2">
-                            <label for="categoria-tienda">Categoría</label>
-                            <select id="categoria-tienda">
-                                <option value="">Sin categoría</option>
-                            </select>
-                            <p id="hint-categoria-tienda" class="field-hint">Opcional. Es el menú propio de tu tienda, con las secciones que vos elijas. Se arma en «Mis categorías».</p>
-                        </div>
-                        <div class="form-group span-2">
-                            <label>Descripción corta</label>
-                            <textarea id="descripcion" rows="5" data-autogrow class="ta-auto" placeholder="Contale al comprador qué es, para qué sirve o qué lo hace especial"></textarea>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- SECCIÓN: Imagen -->
-                <div class="form-section">
-                    <div class="form-section-title">Imagen</div>
-                    <div class="form-group">
-                        <label class="img-upload-area" id="imagen-producto-area" for="imagen-producto-input">
-                            <div id="imagen-producto-preview-placeholder">
-                                <svg width="30" height="30" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-                                <strong>Hacé clic para subir</strong>
-                                <p>JPG, PNG o WebP · máx 3MB</p>
-                            </div>
-                            <img id="imagen-producto-preview" class="img-preview hidden" src="" alt="Vista previa">
-                            <div id="imagen-producto-spinner" class="img-uploading hidden">
-                                <div class="spinner-mini"></div>
-                                <span>Subiendo imagen…</span>
-                            </div>
-                        </label>
-                        <input type="file" id="imagen-producto-input" class="img-upload-input" accept="image/jpeg,image/jpg,image/png,image/webp" onchange="manejarSeleccionImagenProducto(event)">
-                        <div class="img-actions hidden" id="imagen-producto-actions">
-                            <button type="button" class="btn btn-ghost btn-sm" onclick="event.preventDefault(); document.getElementById('imagen-producto-input').click()">Cambiar</button>
-                            <button type="button" class="btn btn-danger btn-sm" onclick="quitarImagenProducto()">Quitar</button>
-                        </div>
-                        <input type="hidden" id="imagen">
-                    </div>
-                </div>
-
-                <!-- SECCIÓN: Etiqueta y publicación -->
-                <div class="form-section">
-                    <div class="form-section-title">Etiqueta y publicación</div>
-                    <div class="form-grid">
-                        <div class="form-group toggle-row">
-                            <label style="margin-bottom: 0;">Con stock</label>
-                            <label class="toggle">
-                                <input type="checkbox" id="activo" checked>
-                                <span class="toggle-slider"></span>
-                            </label>
-                        </div>
-                        <div class="form-group toggle-row">
-                            <label style="margin-bottom: 0;">Marcar como nuevo</label>
-                            <label class="toggle">
-                                <input type="checkbox" id="nuevo">
-                                <span class="toggle-slider"></span>
-                            </label>
-                        </div>
-                        <p class="field-hint" id="hint-nuevo" style="margin-top: -0.4rem;">El cartel "Nuevo" se muestra en la tienda por 5 días desde que lo activás; después desaparece solo.</p>
-                        <div class="form-group" id="medios-pago-producto-wrap">
-                            <label>Medios de pago aceptados</label>
-                            <p class="field-hint">Opcional. Si no marcás ninguno, se muestran todos los medios configurados en tu perfil.</p>
-                            <div id="medios-pago-producto" class="tag-picker"></div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- SECCIÓN VARIANTES -->
-                <div class="form-section">
-                    <div class="form-section-title-row">
-                        <div class="form-section-title" style="margin-bottom: 0;">Variantes</div>
-                    </div>
-                    <div class="form-section-title-row" style="margin-top: -0.55rem; margin-bottom: 0.6rem;">
-                        <p class="field-hint">Opcional. Sirve para ofrecer distintas opciones del mismo producto, cada una con su propio precio, stock y foto.</p>
-                        <button type="button" onclick="agregarFilaVariante()" class="btn btn-ghost btn-sm">+ Agregar</button>
-                    </div>
-                    <div id="lista-variantes"></div>
-                    <div id="aviso-sin-stock" class="aviso-sin-stock-box hidden">
-                        <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="var(--mp-red)" stroke-width="2" style="flex-shrink:0; margin-top:1px;"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m0 3.75h.008M4.93 19h14.14c1.5 0 2.44-1.63 1.68-2.93L13.68 4.35c-.75-1.28-2.6-1.28-3.35 0L3.25 16.07C2.49 17.37 3.43 19 4.93 19z"/></svg>
-                        <p style="font-size: 0.72rem; color: var(--mp-red); font-weight: 600; line-height: 1.4; margin: 0;">Todas las variantes están sin stock: al guardar, el producto se va a ocultar automáticamente de la tienda.</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Pie fijo -->
-            <div class="modal-footer">
-                <button type="button" onclick="cerrarFormulario()" class="btn btn-ghost">Cancelar</button>
-                <button type="submit" id="btn-guardar-producto" class="btn btn-primary">Guardar</button>
-            </div>
-        </form>
-    </div>
 
     <!-- MODAL TÉRMINOS Y CONDICIONES -->
     <div id="modal-instructivo" onclick="if (event.target === this) cerrarInstructivo()" class="modal-overlay fixed inset-0 z-[60] hidden flex items-center justify-center p-0 sm:p-6">
