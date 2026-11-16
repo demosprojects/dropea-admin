@@ -17,7 +17,7 @@
 // ------------------------------------------------------------
 
 const IMG_TIPOS_ACEPTADOS = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-const IMG_MAX_MB_ORIGINAL = 3;
+const IMG_MAX_MB_ORIGINAL = 5;
 const IMG_MAX_LADO_DEFAULT = 1600;
 const IMG_PESO_OBJETIVO_MAX = 300 * 1024; // 300 KB
 const IMG_CALIDAD_INICIAL = 0.8;
