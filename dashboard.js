@@ -1,3 +1,7 @@
+// "Diseño de tienda" todavía no está publicado: la sección se muestra bloqueada con un cartel de
+// "Próximamente". Cambiar a true cuando se quiera habilitar.
+const DISENO_TIENDA_HABILITADO = false;
+
 let perfilActual = null;      // fila de usuarios (id, usuario, rol)
 let emprendedorActual = null; // fila de emprendedores
 let productoEditandoId = null; // null = creando, uuid = editando
@@ -16,6 +20,10 @@ const imagenesVarianteNuevas = new Map();
 let imagenesVarianteParaBorrar = [];  // [{ url, thumb }]
 let mediosPagoPerfilSeleccion = [];   // ids seleccionados en "Mi Perfil"
 let mediosPagoProductoSeleccion = []; // ids seleccionados en el modal de producto
+let bannersPerfil = [];               // urls de la portada (hasta 3); la primera es la principal
+let subiendoBanner = false;
+let badgesProductoEnEdicion = [];     // [{ texto, color }] carteles del producto que se está editando
+let badgeColorElegido = '#dc2626';    // color con el que se crea el próximo cartel
 let productosCache = [];      // último listado de productos traído de Supabase
 const inicioCargado = { perfil: false, productos: false, categorias: false }; // el Inicio se pinta recién cuando están los tres
 
@@ -822,7 +830,23 @@ function renderHistorias() {
 }
 
 
+// Muestra u oculta el bloqueo "Próximamente" de la sección Diseño de tienda
+function aplicarBloqueoDiseno() {
+    const bloqueado = !DISENO_TIENDA_HABILITADO;
+    const cont = document.getElementById('dz-contenido');
+    if (cont) {
+        cont.classList.toggle('dz-bloqueado', bloqueado);
+        cont.toggleAttribute('inert', bloqueado);
+        cont.setAttribute('aria-hidden', bloqueado ? 'true' : 'false');
+    }
+    ['dz-bloqueo', 'dz-pronto-pill'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.toggle('hidden', !bloqueado);
+    });
+}
+
 function mostrarSeccion(seccionId) {
+    aplicarBloqueoDiseno();
     const secciones = {
         inicio: document.getElementById('section-inicio'),
         productos: document.getElementById('section-productos'),
@@ -833,6 +857,7 @@ function mostrarSeccion(seccionId) {
         anuncios: document.getElementById('section-anuncios'),
         qr: document.getElementById('section-qr'),
         historias: document.getElementById('section-historias'),
+        diseno: document.getElementById('section-diseno'),
         'producto-form': document.getElementById('section-producto-form'),
     };
     const navs = {
@@ -845,6 +870,7 @@ function mostrarSeccion(seccionId) {
         anuncios: document.getElementById('nav-anuncios'),
         qr: document.getElementById('nav-qr'),
         historias: document.getElementById('nav-historias'),
+        diseno: document.getElementById('nav-diseno'),
     };
 
     // El formulario de producto no tiene ítem propio en el menú: mientras está
@@ -875,6 +901,7 @@ function mostrarSeccion(seccionId) {
     // (evita generar el QR/objeto de vista previa si el emprendedor nunca la visita).
     if (seccionId === 'qr') renderFormatoQR(formatoQRActivo);
     if (seccionId === 'historias') cargarHistorias();
+    if (seccionId === 'diseno') renderDiseno();
 
     // Al cambiar de sección siempre arrancamos scrolleados arriba del todo.
     // Sin esto, el scroll de la ventana quedaba donde estaba en la sección
@@ -1089,6 +1116,7 @@ function pintarGridProductos() {
             <div class="p-2 sm:p-3.5 xl:p-4 2xl:p-5 flex flex-col gap-0.5 sm:gap-1 xl:gap-1.5 flex-1">
                 <span class="text-[8px] sm:text-[10px] xl:text-[11px] font-bold text-slate-400 uppercase tracking-widest truncate">${escapeHtml(nombreCategoriaDeProducto(p))}</span>
                 <h3 class="font-bold sm:font-extrabold text-slate-900 text-xs sm:text-sm xl:text-[15px] 2xl:text-[17px] leading-snug line-clamp-2">${escapeHtml(p.nombre)}</h3>
+                ${badgesCardDashboard(p)}
                 <div class="pt-0.5 flex items-center gap-1.5 flex-wrap">
                     <span class="font-black text-sm sm:text-base xl:text-xl 2xl:text-[22px] text-slate-900">${formatoPrecio(p.precio)}</span>
                     ${calcularDescuentoPorcentaje(p.precio_anterior, p.precio) > 0 ? `
@@ -1518,6 +1546,104 @@ function toggleMedioPagoProducto(id) {
 }
 
 // ============================================================
+// CARTELES (BADGES) PERSONALIZADOS DEL PRODUCTO
+// ============================================================
+function renderBadgesProducto() {
+    const lista = document.getElementById('badges-producto-lista');
+    if (!lista) return;
+    const lleno = badgesProductoEnEdicion.length >= MAX_BADGES_PRODUCTO;
+
+    lista.innerHTML = badgesProductoEnEdicion.map((b, i) => `
+        <span class="badge-item" style="background:${b.color}; color:${colorTextoParaFondo(b.color)};">
+            <span>${escapeHtml(b.texto)}</span>
+            <button type="button" onclick="quitarBadgeProducto(${i})" aria-label="Quitar cartel ${escapeHtml(b.texto)}">×</button>
+        </span>
+    `).join('');
+
+    // Atajos: los más usados, sin repetir los que ya están
+    const usados = badgesProductoEnEdicion.map(b => b.texto.toLowerCase());
+    document.getElementById('badges-producto-sugeridos').innerHTML = BADGES_SUGERIDOS
+        .map((s, i) => ({ s, i }))
+        .filter(({ s }) => !usados.includes(s.texto.toLowerCase()))
+        .map(({ s, i }) => `
+            <button type="button" class="tag-chip" onclick="agregarBadgeSugerido(${i})">
+                <span class="badge-dot" style="background:${s.color};"></span><span>${escapeHtml(s.texto)}</span>
+            </button>
+        `).join('');
+
+    const esPreset = BADGE_COLORES.includes(badgeColorElegido);
+    document.getElementById('badge-colores').innerHTML = BADGE_COLORES.map(c => `
+        <button type="button" class="badge-swatch ${c === badgeColorElegido ? 'activo' : ''}" data-color="${c}" style="background:${c};" onclick="elegirColorBadge('${c}')" aria-label="Color ${c}"></button>
+    `).join('') + `
+        <label class="badge-swatch badge-swatch-custom ${esPreset ? '' : 'activo'}" title="Otro color" style="${esPreset ? '' : 'background:' + badgeColorElegido + ';'}">
+            <input type="color" value="${badgeColorElegido}" oninput="elegirColorBadge(this.value)" aria-label="Elegir otro color">
+        </label>
+    `;
+
+    // Con 3 carteles ya no se puede agregar otro: se esconde el editor
+    document.getElementById('badge-editor').style.display = lleno ? 'none' : '';
+    actualizarPreviewBadge();
+}
+
+function actualizarPreviewBadge() {
+    const prev = document.getElementById('badge-preview');
+    if (!prev) return;
+    const texto = document.getElementById('badge-texto').value.trim();
+    prev.textContent = texto || 'Vista previa';
+    prev.style.background = badgeColorElegido;
+    prev.style.color = colorTextoParaFondo(badgeColorElegido);
+    prev.style.opacity = texto ? '1' : '0.55';
+}
+
+// Cambia el color elegido sin volver a dibujar todo (si no, el selector de color se cierra mientras se arrastra)
+function elegirColorBadge(hex) {
+    badgeColorElegido = hex;
+    const esPreset = BADGE_COLORES.includes(hex);
+    document.querySelectorAll('#badge-colores .badge-swatch').forEach(el => {
+        const custom = el.classList.contains('badge-swatch-custom');
+        el.classList.toggle('activo', custom ? !esPreset : el.dataset.color === hex);
+        if (custom) el.style.background = esPreset ? '' : hex;
+    });
+    actualizarPreviewBadge();
+}
+
+// Sin argumentos toma lo escrito en el campo; con argumentos (atajos) agrega directo
+function agregarBadgeProducto(texto, color) {
+    const input = document.getElementById('badge-texto');
+    const t = String(texto ?? input.value).replace(/\s+/g, ' ').trim().slice(0, MAX_LARGO_BADGE);
+    if (!t) { input.focus(); return false; }
+    if (badgesProductoEnEdicion.length >= MAX_BADGES_PRODUCTO) {
+        mostrarToast(`Podés poner hasta ${MAX_BADGES_PRODUCTO} carteles por producto.`, 'info');
+        return false;
+    }
+    if (badgesProductoEnEdicion.some(b => b.texto.toLowerCase() === t.toLowerCase())) {
+        mostrarToast('Ese cartel ya está agregado.', 'info');
+        return false;
+    }
+    badgesProductoEnEdicion.push({ texto: t, color: color || badgeColorElegido });
+    input.value = '';
+    renderBadgesProducto();
+    return true;
+}
+
+function agregarBadgeSugerido(i) {
+    const s = BADGES_SUGERIDOS[i];
+    if (s) agregarBadgeProducto(s.texto, s.color);
+}
+
+function quitarBadgeProducto(i) {
+    badgesProductoEnEdicion.splice(i, 1);
+    renderBadgesProducto();
+}
+
+// Carteles en la card del producto dentro del panel
+function badgesCardDashboard(p) {
+    const lista = normalizarBadges(p.badges);
+    if (!lista.length) return '';
+    return `<div class="flex flex-wrap gap-1 pt-0.5">${lista.map(b => `<span class="text-[9px] sm:text-[11px] font-bold px-1.5 py-0.5 sm:px-2 rounded-full" style="background:${b.color}; color:${colorTextoParaFondo(b.color)};">${escapeHtml(b.texto)}</span>`).join('')}</div>`;
+}
+
+// ============================================================
 // DATOS OBLIGATORIOS ANTES DE SUBIR PRODUCTOS
 // ============================================================
 // Sin WhatsApp cargado, el comprador no tiene como contactar al
@@ -1580,6 +1706,10 @@ function abrirFormulario() {
     document.getElementById('imagen').value = '';
     document.getElementById('activo').checked = true;
     document.getElementById('nuevo').checked = false;
+    badgesProductoEnEdicion = [];
+    badgeColorElegido = BADGE_COLORES[0];
+    document.getElementById('badge-texto').value = '';
+    renderBadgesProducto();
     actualizarPreviewImagenProducto('');
     renderVariantes();
     renderMediosPagoProducto();
@@ -1745,8 +1875,13 @@ async function editarProducto(id) {
     imagenThumbUrlActual = p.imagen_thumb_url || '';
     document.getElementById('descripcion').value = p.descripcion || '';
     document.getElementById('activo').checked = p.activo;
-    document.getElementById('nuevo').checked = !!p.nuevo;
-    actualizarPreviewImagenProducto(p.imagen_url);
+    // Si el cartel "Nuevo" ya venció (pasaron los 5 días), el interruptor aparece apagado
+    document.getElementById('nuevo').checked = esProductoNuevoVigente(p);
+    badgesProductoEnEdicion = normalizarBadges(p.badges);
+    badgeColorElegido = BADGE_COLORES[0];
+    document.getElementById('badge-texto').value = '';
+    renderBadgesProducto();
+    actualizarPreviewImagenProducto(p.imagen_thumb_url || p.imagen_url);
 
     renderVariantes();
     renderMediosPagoProducto();
@@ -1762,7 +1897,17 @@ function actualizarPreviewImagenProducto(url) {
     const acciones = document.getElementById('imagen-producto-actions');
     const valor = (url || '').trim();
 
+    // Loader mientras baja la foto (reusa el spinner de "Subiendo imagen…", cambiando el texto)
+    const spinner = document.getElementById('imagen-producto-spinner');
+    const textoSpinner = spinner ? spinner.querySelector('span') : null;
+    const terminarCarga = () => {
+        if (!spinner) return;
+        spinner.classList.add('hidden');
+        if (textoSpinner) textoSpinner.textContent = 'Subiendo imagen…';
+    };
+
     if (!valor) {
+        terminarCarga();
         img.classList.add('hidden');
         img.src = '';
         placeholder.classList.remove('hidden');
@@ -1771,13 +1916,24 @@ function actualizarPreviewImagenProducto(url) {
         return;
     }
 
+    // Ocultamos la foto anterior (si había) para que no se vea la de otro producto mientras carga
+    img.classList.add('hidden');
+    area.classList.remove('has-image');
+    acciones.classList.add('hidden');
+    if (spinner) {
+        if (textoSpinner) textoSpinner.textContent = 'Cargando imagen…';
+        spinner.classList.remove('hidden');
+    }
+
     img.onerror = () => {
+        terminarCarga();
         img.classList.add('hidden');
         placeholder.classList.remove('hidden');
         area.classList.remove('has-image');
         acciones.classList.add('hidden');
     };
     img.onload = () => {
+        terminarCarga();
         img.classList.remove('hidden');
         placeholder.classList.add('hidden');
         area.classList.add('has-image');
@@ -2112,6 +2268,9 @@ form.addEventListener('submit', async (e) => {
         return;
     }
 
+    // Si escribió un cartel y no apretó "Agregar", lo sumamos igual para que no se pierda
+    if (document.getElementById('badge-texto').value.trim()) agregarBadgeProducto();
+
     const payload = {
         emprendedor_id: perfilActual.id,
         nombre: document.getElementById('nombre').value.trim(),
@@ -2122,7 +2281,8 @@ form.addEventListener('submit', async (e) => {
         imagen_thumb_url: imagenThumbUrlActual || null,
         descripcion: document.getElementById('descripcion').value.trim(),
         activo: todasLasVariantesSinStock ? false : activoElegido,
-        medios_pago: mediosPagoProductoSeleccion
+        medios_pago: mediosPagoProductoSeleccion,
+        badges: normalizarBadges(badgesProductoEnEdicion)
     };
 
     // Si el producto queda sin stock (y por lo tanto se oculta), no tiene
@@ -2141,7 +2301,8 @@ form.addEventListener('submit', async (e) => {
     // borramos la fecha.
     const nuevoElegido = document.getElementById('nuevo').checked;
     const productoAnterior = productoEditandoId ? productosCache.find(x => x.id === productoEditandoId) : null;
-    const yaEstabaMarcadoNuevo = !!(productoAnterior && productoAnterior.nuevo);
+    // "Ya estaba" solo cuenta si el cartel seguía vigente: si venció y lo vuelve a activar, arranca otros 5 días
+    const yaEstabaMarcadoNuevo = !!(productoAnterior && esProductoNuevoVigente(productoAnterior));
 
     payload.nuevo = nuevoElegido;
     if (nuevoElegido && !yaEstabaMarcadoNuevo) {
@@ -2355,7 +2516,6 @@ async function cargarPerfilEmprendedor() {
     document.getElementById('p-nombre').value = data.nombre_tienda || '';
     document.getElementById('p-whatsapp').value = (data.whatsapp || '').replace(/^549/, '');
     document.getElementById('p-logo').value = data.logo_url || '';
-    document.getElementById('p-banner').value = data.banner_url || '';
     document.getElementById('p-bio').value = data.bio || '';
     document.getElementById('p-ubicacion').value = data.ubicacion || '';
     document.getElementById('p-mapa').value = data.mapa_url || '';
@@ -2371,7 +2531,8 @@ async function cargarPerfilEmprendedor() {
     renderMediosPagoPerfil();
     actualizarTarjetaCuentaSidebar(data.nombre_tienda, data.logo_url);
     actualizarPreviewLogo(data.logo_url);
-    actualizarPreviewBanner(data.banner_url);
+    bannersPerfil = bannersDeEmprendedor(data);
+    renderBannersPerfil();
     actualizarContadorAnuncio();
     ajustarTextareasAutogrow();
     inicioCargado.perfil = true;
@@ -2411,6 +2572,12 @@ async function manejarSeleccionBanner(event) {
     const file = event.target.files[0];
     if (!file) return;
 
+    if (bannersPerfil.length >= MAX_BANNERS_PORTADA) {
+        mostrarToast(`Podés subir hasta ${MAX_BANNERS_PORTADA} imágenes de portada.`, 'info');
+        event.target.value = '';
+        return;
+    }
+
     const errorValidacion = validarImagenSeleccionada(file);
     if (errorValidacion) {
         mostrarToast(errorValidacion, 'error');
@@ -2418,42 +2585,61 @@ async function manejarSeleccionBanner(event) {
         return;
     }
 
-    mostrarSpinnerImagen('p-banner', true);
+    subiendoBanner = true;
+    renderBannersPerfil();
     try {
         const url = await subirImagenCloudinary(file, 1600);
-        document.getElementById('p-banner').value = url;
-        actualizarPreviewBanner(url);
+        bannersPerfil.push(url);
     } catch (err) {
         console.error(err);
         mostrarToast('No se pudo subir el banner. Probá de nuevo.', 'error');
     } finally {
-        mostrarSpinnerImagen('p-banner', false);
+        subiendoBanner = false;
+        renderBannersPerfil();
         event.target.value = '';
     }
 }
 
-// Muestra la preview del banner (o el placeholder si está vacío/URL inválida)
-function actualizarPreviewBanner(url) {
-    const img = document.getElementById('p-banner-preview');
-    const placeholder = document.getElementById('p-banner-preview-placeholder');
-    const valor = (url || '').trim();
+// Dibuja los espacios de la portada: imágenes cargadas + un espacio para agregar (hasta 3)
+function renderBannersPerfil() {
+    const cont = document.getElementById('p-banners-lista');
+    if (!cont) return;
 
-    if (!valor) {
-        img.classList.add('hidden');
-        img.src = '';
-        placeholder.classList.remove('hidden');
-        return;
+    const tiles = bannersPerfil.map((url, i) => `
+        <div class="relative aspect-[16/9] rounded-xl overflow-hidden border border-slate-200 bg-slate-50">
+            <img src="${escapeHtml(url)}" alt="Portada ${i + 1}" class="absolute inset-0 w-full h-full object-cover" loading="lazy" decoding="async">
+            <div class="absolute inset-x-0 bottom-0 flex items-center justify-between gap-1 bg-black/60 text-white text-[10px] sm:text-[11px] font-bold px-1.5 py-1">
+                ${i === 0
+                    ? '<span>Principal</span>'
+                    : `<button type="button" onclick="moverBannerPerfil(${i})" class="hover:underline" title="Mover antes">← Subir</button>`}
+                <button type="button" onclick="quitarBannerPerfil(${i})" class="hover:underline" aria-label="Quitar imagen ${i + 1}">Quitar</button>
+            </div>
+        </div>
+    `);
+
+    if (subiendoBanner) {
+        tiles.push(`
+        <div class="aspect-[16/9] rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-center">
+            <svg class="w-5 h-5 animate-spin text-slate-400" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+        </div>`);
+    } else if (bannersPerfil.length < MAX_BANNERS_PORTADA) {
+        tiles.push(`
+        <button type="button" onclick="document.getElementById('p-banner-input').click()" class="aspect-[16/9] rounded-xl border-2 border-dashed border-slate-300 text-slate-400 hover:border-obsidian hover:text-obsidian transition-colors flex flex-col items-center justify-center gap-0.5 text-[11px] font-bold">
+            <span class="text-xl leading-none">+</span><span>${bannersPerfil.length === 0 ? 'Elegir imagen' : 'Agregar'}</span>
+        </button>`);
     }
+    cont.innerHTML = tiles.join('');
+}
 
-    img.onerror = () => {
-        img.classList.add('hidden');
-        placeholder.classList.remove('hidden');
-    };
-    img.onload = () => {
-        img.classList.remove('hidden');
-        placeholder.classList.add('hidden');
-    };
-    img.src = valor;
+function quitarBannerPerfil(i) {
+    bannersPerfil.splice(i, 1);
+    renderBannersPerfil();
+}
+
+function moverBannerPerfil(i) {
+    if (i <= 0 || i >= bannersPerfil.length) return;
+    [bannersPerfil[i - 1], bannersPerfil[i]] = [bannersPerfil[i], bannersPerfil[i - 1]];
+    renderBannersPerfil();
 }
 
 // Muestra la preview de la imagen del logo (o el placeholder si está vacío/URL inválida)
@@ -2581,7 +2767,8 @@ async function guardarPerfil() {
             return num.startsWith('549') ? num : '549' + num;
         })(),
         logo_url: document.getElementById('p-logo').value.trim(),
-        banner_url: document.getElementById('p-banner').value.trim(),
+        banner_url: bannersPerfil[0] || '',
+        banners_extra: bannersPerfil.slice(1, MAX_BANNERS_PORTADA),
         bio: document.getElementById('p-bio').value.trim(),
         ubicacion: document.getElementById('p-ubicacion').value.trim(),
         mapa_url: document.getElementById('p-mapa').value.trim(),
@@ -3359,4 +3546,168 @@ async function eliminarCategoriaTienda(id) {
     await cargarCategoriasTienda();
     await renderProductos();
     mostrarToast('Categoría eliminada.', 'success');
+}
+
+// ============================================================
+// TEMA DE LA TIENDA: color de acento + tipografía
+// ============================================================
+// Cada tienda puede elegir un color principal y una combinación de fuentes.
+// Se guardan en emprendedores.tema_color (hex) y emprendedores.tema_fuente (clave).
+// Si no hay nada guardado, la tienda se ve como siempre.
+const TEMA_FUENTES = {
+    actual:   { nombre: 'Actual',   titulo: "'Bricolage Grotesque'", cuerpo: "'Inter'",  css: null },
+    moderna:  { nombre: 'Moderna',  titulo: "'Plus Jakarta Sans'",   cuerpo: "'Inter'",  css: 'family=Plus+Jakarta+Sans:wght@500..800' },
+    elegante: { nombre: 'Elegante', titulo: "'Playfair Display'",    cuerpo: "'Inter'",  css: 'family=Playfair+Display:wght@500..800' },
+    amigable: { nombre: 'Amigable', titulo: "'Poppins'",             cuerpo: "'Nunito'", css: 'family=Poppins:wght@500;600;700&family=Nunito:wght@400;500;600;700' },
+    urbana:   { nombre: 'Urbana',   titulo: "'Space Grotesk'",       cuerpo: "'Inter'",  css: 'family=Space+Grotesk:wght@500..700' }
+};
+
+function temaHexValido(h) { return typeof h === 'string' && /^#[0-9a-f]{6}$/i.test(h); }
+
+function temaLuminancia(hex) {
+    const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255)
+        .map(v => (v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)));
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+// Mezcla el color con negro (con=0) o blanco (con=255) en la proporción f (0 a 1)
+function temaMezclar(hex, con, f) {
+    const c = [1, 3, 5].map(i => Math.round(parseInt(hex.slice(i, i + 2), 16) * (1 - f) + con * f));
+    return '#' + c.map(v => v.toString(16).padStart(2, '0')).join('');
+}
+
+// Colores derivados del acento: texto legible encima (blanco u oscuro), hover y cinta.
+// Sin color elegido devuelve los valores originales de la tienda.
+function temaCalcular(hex) {
+    if (!temaHexValido(hex)) return { acento: '#000000', texto: '#ffffff', hover: '#1e40af', cinta: '#1e40af' };
+    const lum = temaLuminancia(hex);
+    const h = hex.toLowerCase();
+    return {
+        acento: h,
+        texto: lum > 0.4 ? '#111111' : '#ffffff',
+        hover: lum < 0.08 ? temaMezclar(h, 255, 0.25) : temaMezclar(h, 0, 0.18),
+        cinta: h
+    };
+}
+
+// ============================================================
+// DISEÑO DE LA TIENDA (color principal + tipografía)
+// ============================================================
+// Se guarda en emprendedores.tema_color / tema_fuente (ver tema_tienda.sql).
+// "Clásico" = sin color propio (null): la tienda mantiene su look original.
+const DZ_COLORES = [
+    { nombre: 'Clásico',  hex: null },
+    { nombre: 'Azul',     hex: '#1d4ed8' },
+    { nombre: 'Verde',    hex: '#15803d' },
+    { nombre: 'Turquesa', hex: '#0f766e' },
+    { nombre: 'Violeta',  hex: '#6d28d9' },
+    { nombre: 'Rosa',     hex: '#be185d' },
+    { nombre: 'Bordó',    hex: '#9f1239' },
+    { nombre: 'Naranja',  hex: '#c2410c' },
+    { nombre: 'Dorado',   hex: '#a16207' }
+];
+let dzColor = null;       // hex elegido o null (clásico)
+let dzFuente = 'actual';  // clave de TEMA_FUENTES
+
+function renderDiseno() {
+    const e = emprendedorActual || {};
+    dzColor = temaHexValido(e.tema_color) ? e.tema_color.toLowerCase() : null;
+    dzFuente = TEMA_FUENTES[e.tema_fuente] ? e.tema_fuente : 'actual';
+    document.getElementById('dz-ver-tienda').href = urlPerfilPublico();
+    document.getElementById('dz-color-aviso').classList.add('hidden');
+    pintarOpcionesDiseno();
+}
+
+function pintarOpcionesDiseno() {
+    const enPaleta = DZ_COLORES.some(c => (c.hex || null) === dzColor);
+    const sw = DZ_COLORES.map(c => `
+        <button type="button" class="dz-sw" aria-pressed="${(c.hex || null) === dzColor}" onclick="elegirColorDiseno(${c.hex ? `'${c.hex}'` : 'null'})">
+            <i style="--c:${c.hex || '#000000'}"></i><span>${c.nombre}</span>
+        </button>`).join('');
+    const personalizado = `
+        <label class="dz-sw dz-sw-custom" aria-pressed="${!enPaleta}">
+            <i style="--c:${!enPaleta ? dzColor : 'transparent'}" class="${enPaleta ? 'dz-arcoiris' : ''}"></i><span>Otro color</span>
+            <input type="color" id="dz-color-custom" value="${!enPaleta ? dzColor : '#1d4ed8'}" aria-label="Elegir otro color" oninput="elegirColorDiseno(this.value)">
+        </label>`;
+    document.getElementById('dz-colores').innerHTML = sw + personalizado;
+
+    document.getElementById('dz-fuentes').innerHTML = Object.entries(TEMA_FUENTES).map(([clave, f]) => `
+        <button type="button" class="dz-fuente" aria-pressed="${clave === dzFuente}" onclick="elegirFuenteDiseno('${clave}')">
+            <small>${f.nombre}</small>
+            <b style="font-family:${f.titulo}, 'Inter', sans-serif">Nombre de tu tienda</b>
+            <span style="font-family:${f.cuerpo}, 'Inter', sans-serif">Productos, precios y descripciones fáciles de leer.</span>
+        </button>`).join('');
+
+    actualizarPreviewDiseno();
+}
+
+function elegirColorDiseno(hex) {
+    const aviso = document.getElementById('dz-color-aviso');
+    // Un color muy claro casi no se vería sobre el fondo blanco de la tienda
+    if (hex && temaLuminancia(hex) > 0.7) {
+        aviso.textContent = 'Ese color es muy claro y casi no se vería en la tienda. Probá con uno más oscuro.';
+        aviso.classList.remove('hidden');
+        return;
+    }
+    aviso.classList.add('hidden');
+    dzColor = hex ? hex.toLowerCase() : null;
+    pintarOpcionesDiseno();
+}
+
+function elegirFuenteDiseno(clave) {
+    if (!TEMA_FUENTES[clave]) return;
+    dzFuente = clave;
+    pintarOpcionesDiseno();
+}
+
+function actualizarPreviewDiseno() {
+    const t = temaCalcular(dzColor);
+    const f = TEMA_FUENTES[dzFuente] || TEMA_FUENTES.actual;
+    const pv = document.getElementById('dz-preview');
+    pv.style.setProperty('--dz-acento', t.acento);
+    pv.style.setProperty('--dz-texto', t.texto);
+    pv.style.setProperty('--dz-cinta', t.cinta);
+    pv.style.setProperty('--dz-f-titulo', `${f.titulo}, 'Inter', sans-serif`);
+    pv.style.setProperty('--dz-f-cuerpo', `${f.cuerpo}, 'Inter', sans-serif`);
+
+    const e = emprendedorActual || {};
+    const nombre = (e.nombre_tienda || '').trim() || perfilActual.usuario;
+    document.getElementById('dz-pv-nombre').textContent = nombre;
+    const logo = document.getElementById('dz-pv-logo');
+    const url = (e.logo_url || '').trim();
+    logo.textContent = '';
+    if (url) {
+        const img = document.createElement('img');
+        img.alt = '';
+        img.src = url;
+        logo.appendChild(img);
+    } else {
+        logo.textContent = nombre.charAt(0).toUpperCase();
+    }
+}
+
+function restablecerDiseno() {
+    if (!DISENO_TIENDA_HABILITADO) return;
+    dzColor = null;
+    dzFuente = 'actual';
+    document.getElementById('dz-color-aviso').classList.add('hidden');
+    pintarOpcionesDiseno();
+}
+
+async function guardarDiseno() {
+    if (!DISENO_TIENDA_HABILITADO) return;
+    const btn = document.getElementById('btn-guardar-diseno');
+    btn.disabled = true;
+    btn.textContent = 'Guardando...';
+    const datos = { tema_color: dzColor, tema_fuente: dzFuente === 'actual' ? null : dzFuente };
+    const { error } = await supabase.from('emprendedores').update(datos).eq('id', perfilActual.id);
+    btn.disabled = false;
+    btn.textContent = 'Guardar diseño';
+    if (error) {
+        console.error(error);
+        mostrarToast('No se pudo guardar el diseño. Probá de nuevo.', 'error');
+        return;
+    }
+    if (emprendedorActual) Object.assign(emprendedorActual, datos);
+    mostrarToast('Diseño guardado. Ya se ve en tu tienda.', 'success');
 }
