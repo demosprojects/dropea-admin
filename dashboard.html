@@ -25,6 +25,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,600;0,700;0,800;1,800&display=swap" rel="stylesheet">
     <!-- Tipografías adicionales solo para las tarjetas QR personalizables (ver qr-cards.js) -->
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500..700&family=Nunito:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&family=Playfair+Display:wght@400;700;900&family=Anton&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -465,6 +466,25 @@
         #section-producto-form .tag-chip:hover { border-color: var(--mp-dark); color: var(--mp-text); }
         #section-producto-form .tag-chip.selected { background: var(--mp-dark); border-color: var(--mp-dark); color: #fff; }
 
+        /* Carteles (badges) personalizados del producto */
+        #section-producto-form .badge-lista { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.65rem; }
+        #section-producto-form .badge-lista:empty { display: none; }
+        #section-producto-form .badge-item { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.3rem 0.7rem; border-radius: 99px; font-size: 0.75rem; font-weight: 700; line-height: 1.2; max-width: 100%; transition: background .15s, color .15s; }
+        #section-producto-form .badge-item button { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; padding: 0; border: none; border-radius: 50%; background: rgba(255,255,255,0.25); color: inherit; font-size: 12px; line-height: 1; cursor: pointer; }
+        #section-producto-form .badge-item button:hover { background: rgba(255,255,255,0.45); }
+        #section-producto-form .badge-dot { display: inline-block; flex-shrink: 0; width: 0.6rem; height: 0.6rem; border-radius: 50%; }
+        #section-producto-form #badge-editor { display: flex; flex-direction: column; gap: 0.7rem; }
+        #section-producto-form .badge-creador { display: flex; gap: 0.5rem; }
+        #section-producto-form .badge-creador input[type="text"] { flex: 1; min-width: 0; padding: 0.6rem 0.8rem; border: 1.5px solid var(--mp-border-light); border-radius: var(--mp-radius-sm); background: var(--mp-surface); color: var(--mp-text); font-size: 0.875rem; }
+        #section-producto-form .badge-creador input[type="text"]:focus { outline: none; border-color: var(--mp-dark); }
+        #section-producto-form .badge-color-fila { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem; }
+        #section-producto-form .badge-colores { display: flex; flex-wrap: wrap; gap: 0.45rem; }
+        #section-producto-form .badge-swatch { position: relative; width: 26px; height: 26px; padding: 0; border: 2px solid #fff; border-radius: 50%; box-shadow: 0 0 0 1.5px var(--mp-border-light); cursor: pointer; transition: transform .12s, box-shadow .12s; }
+        #section-producto-form .badge-swatch:hover { transform: scale(1.1); }
+        #section-producto-form .badge-swatch.activo { box-shadow: 0 0 0 2.5px var(--mp-dark); }
+        #section-producto-form .badge-swatch-custom { background: conic-gradient(#ef4444, #eab308, #22c55e, #06b6d4, #6366f1, #ec4899, #ef4444); }
+        #section-producto-form .badge-swatch-custom input { position: absolute; inset: 0; width: 100%; height: 100%; padding: 0; border: 0; opacity: 0; cursor: pointer; }
+
         /* Variantes
            Cada fila se arma con celdas (.variant-cell-*) en vez de inputs sueltos,
            así en mobile podemos reacomodar el grid (ver media query) sin tocar el
@@ -670,6 +690,75 @@
         }
         @media (prefers-reduced-motion: reduce) {
             #section-producto-form .pf-card { animation: none !important; }
+        }
+        /* ------------------------------------------------------------
+           DISEÑO DE LA TIENDA: elegir color y tipografía con vista previa
+           ------------------------------------------------------------ */
+        #section-diseno .dz-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.25rem; }
+        #section-diseno .dz-opciones { display: flex; flex-direction: column; gap: 1.25rem; min-width: 0; }
+        #section-diseno .dz-vista { order: -1; min-width: 0; }
+        @media (min-width: 1024px) {
+            #section-diseno .dz-grid { grid-template-columns: minmax(0, 1fr) 24rem; gap: 1.5rem; align-items: start; }
+            #section-diseno .dz-vista { order: 2; position: sticky; top: 1rem; }
+        }
+        #section-diseno .dz-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 1.25rem 1.35rem 1.35rem; box-shadow: 0 1px 2px rgba(15,23,42,.04); }
+        #section-diseno .dz-card h2 { font-size: 1.05rem; font-weight: 800; color: #0f172a; }
+        #section-diseno .dz-hint { font-size: .85rem; line-height: 1.45; color: #64748b; margin: .25rem 0 1rem; }
+        #section-diseno .dz-aviso { margin-top: .75rem; font-size: .85rem; font-weight: 600; color: #b91c1c; }
+        #section-diseno .dz-aviso.hidden { display: none; }
+        #section-diseno .dz-swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(5.2rem, 1fr)); gap: .6rem; }
+        #section-diseno .dz-sw { position: relative; display: flex; flex-direction: column; align-items: center; gap: .4rem; padding: .7rem .4rem .6rem; border: 2px solid #e2e8f0; border-radius: 14px; background: #fff; cursor: pointer; font-size: .8rem; font-weight: 600; color: #475569; transition: border-color .15s, transform .12s; }
+        #section-diseno .dz-sw:active { transform: scale(.96); }
+        #section-diseno .dz-sw i { display: block; width: 36px; height: 36px; border-radius: 50%; background: var(--c); box-shadow: inset 0 0 0 1px rgba(0,0,0,.1); }
+        #section-diseno .dz-sw i.dz-arcoiris { background: conic-gradient(#ef4444, #f59e0b, #22c55e, #06b6d4, #6366f1, #d946ef, #ef4444); }
+        #section-diseno .dz-sw[aria-pressed="true"] { border-color: #0f172a; color: #0f172a; box-shadow: 0 0 0 3px rgba(15,23,42,.08); }
+        #section-diseno .dz-sw input[type="color"] { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; border: 0; padding: 0; }
+        #section-diseno .dz-fuentes { display: grid; gap: .6rem; }
+        #section-diseno .dz-fuente { text-align: left; padding: .85rem 1rem; border: 2px solid #e2e8f0; border-radius: 14px; background: #fff; cursor: pointer; transition: border-color .15s; }
+        #section-diseno .dz-fuente[aria-pressed="true"] { border-color: #0f172a; box-shadow: 0 0 0 3px rgba(15,23,42,.08); }
+        #section-diseno .dz-fuente small { display: block; font-size: .78rem; font-weight: 700; color: #94a3b8; margin-bottom: .15rem; }
+        #section-diseno .dz-fuente b { display: block; font-size: 1.35rem; font-weight: 700; line-height: 1.2; color: #0f172a; }
+        #section-diseno .dz-fuente span { display: block; font-size: .92rem; color: #64748b; margin-top: .2rem; line-height: 1.4; }
+        #section-diseno .dz-vista-titulo { font-size: .85rem; font-weight: 700; color: #64748b; margin-bottom: .5rem; }
+
+        #section-diseno #dz-preview { background: #fff; border: 1px solid #e2e8f0; border-radius: 18px; overflow: hidden; font-family: var(--dz-f-cuerpo); box-shadow: 0 8px 24px rgba(15,23,42,.08); }
+        #section-diseno .dz-pv-cinta { background: var(--dz-cinta); color: var(--dz-texto); font-size: .8rem; font-weight: 600; text-align: center; padding: .55rem .8rem; }
+        #section-diseno .dz-pv-banner { height: 78px; background: linear-gradient(135deg, #e2e8f0, #cbd5e1); }
+
+        /* "Diseño de tienda" todavía no está publicado: la sección se ve (difuminada) pero bloqueada,
+           con un cartel de "Próximamente" encima. Se activa/desactiva con DISENO_TIENDA_HABILITADO (dashboard.js). */
+        #section-diseno .dz-wrap { position: relative; }
+        #section-diseno .dz-contenido.dz-bloqueado { filter: blur(6px) saturate(0.9); opacity: 0.5; pointer-events: none; user-select: none; }
+        #section-diseno .dz-bloqueo { position: absolute; inset: 0; z-index: 5; display: flex; align-items: flex-start; justify-content: center; padding: 1.5rem 0.25rem; }
+        #section-diseno .dz-bloqueo.hidden { display: none; }
+        #section-diseno .dz-bloqueo-card { position: sticky; top: 5rem; width: 100%; max-width: 27rem; text-align: center; background: #fff; border: 1px solid #e2e8f0; border-radius: 1.5rem; padding: 1.75rem 1.5rem; box-shadow: 0 24px 60px -16px rgba(15, 23, 42, 0.3); }
+        #section-diseno .dz-pv-body { padding: 0 1rem 1.1rem; }
+        #section-diseno .dz-pv-logo { width: 58px; height: 58px; margin-top: -29px; border-radius: 16px; border: 3px solid #fff; overflow: hidden; display: flex; align-items: center; justify-content: center; background: var(--dz-acento); color: var(--dz-texto); font-family: var(--dz-f-titulo); font-weight: 700; font-size: 1.6rem; }
+        #section-diseno .dz-pv-logo img { width: 100%; height: 100%; object-fit: cover; }
+        #section-diseno .dz-pv-nombre { margin-top: .6rem; font-family: var(--dz-f-titulo); font-weight: 700; font-size: 1.55rem; line-height: 1.1; color: #0f172a; }
+        #section-diseno .dz-pv-pill { display: inline-flex; margin-top: .75rem; padding: .5rem .95rem; border-radius: 999px; background: var(--dz-acento); color: var(--dz-texto); font-weight: 700; font-size: .85rem; }
+        #section-diseno .dz-pv-prod { display: flex; align-items: center; gap: .7rem; margin-top: 1rem; padding: .6rem; border: 1px solid #e2e8f0; border-radius: 14px; }
+        #section-diseno .dz-pv-img { width: 56px; height: 56px; flex-shrink: 0; border-radius: 10px; background: #e2e8f0; }
+        #section-diseno .dz-pv-info { flex: 1; min-width: 0; }
+        #section-diseno .dz-pv-nom { font-family: var(--dz-f-titulo); font-weight: 600; font-size: 1rem; color: #0f172a; }
+        #section-diseno .dz-pv-precio { font-size: .95rem; font-weight: 700; color: #0f172a; font-variant-numeric: tabular-nums; }
+        #section-diseno .dz-pv-add { width: 36px; height: 36px; flex-shrink: 0; border-radius: 50%; background: var(--dz-acento); color: var(--dz-texto); display: flex; align-items: center; justify-content: center; font-size: 1.3rem; font-weight: 600; }
+        #section-diseno .dz-pv-btn { display: flex; align-items: center; justify-content: center; margin-top: .85rem; height: 44px; border-radius: 12px; background: var(--dz-acento); color: var(--dz-texto); font-weight: 600; font-size: .9rem; }
+
+        #section-diseno .dz-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: .75rem; margin-top: 1.5rem; }
+        #section-diseno .dz-link { margin-right: auto; font-size: .9rem; font-weight: 700; color: #475569; text-decoration: underline; text-underline-offset: 3px; }
+        #section-diseno .dz-link:hover { color: #0f172a; }
+        #section-diseno .dz-btn { height: 48px; padding: 0 1.4rem; border-radius: 12px; font-size: .9rem; font-weight: 700; cursor: pointer; transition: background-color .15s, opacity .15s, transform .12s; }
+        #section-diseno .dz-btn:active:not(:disabled) { transform: scale(.97); }
+        #section-diseno .dz-btn-ghost { background: #fff; border: 1px solid #cbd5e1; color: #475569; }
+        #section-diseno .dz-btn-ghost:hover { border-color: #94a3b8; color: #0f172a; }
+        #section-diseno .dz-btn-primary { background: #070a14; border: 0; color: #fff; min-width: 11rem; }
+        #section-diseno .dz-btn-primary:hover:not(:disabled) { background: #1e40af; }
+        #section-diseno .dz-btn:disabled { opacity: .6; cursor: default; }
+        @media (max-width: 640px) {
+            #section-diseno .dz-link { flex-basis: 100%; text-align: center; margin: 0 0 .25rem; }
+            #section-diseno .dz-btn { flex: 1; padding: 0 1rem; }
+            #section-diseno .dz-btn-primary { flex: 2; min-width: 0; }
         }
         /* ============================================================
            SECCIÓN QR — cartel/sticker/historia para imprimir
@@ -1052,6 +1141,10 @@
                         <svg class="w-[18px] h-[18px] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/></svg>
                         <span class="flex-1">Mis categorías</span>
                     </button>
+                    <button id="nav-diseno" onclick="mostrarSeccion('diseno'); cerrarSidebarMobile()" class="w-full text-left px-5 py-3 rounded-full transition-all duration-150 flex items-center gap-3 group text-[11px] font-black uppercase tracking-widest text-zinc-400 hover:text-blue-400 hover:bg-white/5">
+                        <svg class="w-[18px] h-[18px] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"/></svg>
+                        <span class="flex-1">Diseño de tienda</span>
+                    </button>
                     <button id="nav-anuncios" onclick="mostrarSeccion('anuncios'); cerrarSidebarMobile()" class="w-full text-left px-5 py-3 rounded-full transition-all duration-150 flex items-center gap-3 group text-[11px] font-black uppercase tracking-widest text-zinc-400 hover:text-blue-400 hover:bg-white/5">
                         <svg class="w-[18px] h-[18px] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"/></svg>
                         <span class="flex-1">Anuncios</span>
@@ -1419,27 +1512,11 @@
 
                             <div id="campo-banner-portada">
                                 <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
-                                    Banner / Portada <span class="text-slate-400 font-normal lowercase">(opcional)</span>
+                                    Banner / Portada <span class="text-slate-400 font-normal lowercase">(opcional · hasta 3 imágenes)</span>
                                 </label>
-                                <div class="flex items-center gap-4">
-                                    <div class="relative w-24 h-14 rounded-xl overflow-hidden border border-slate-200 bg-slate-50 flex-shrink-0">
-                                        <img id="p-banner-preview" src="" class="hidden absolute inset-0 w-full h-full object-cover">
-                                        <div id="p-banner-preview-placeholder" class="w-full h-full flex items-center justify-center text-slate-300">
-                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14M4 8h16M4 4h16a1 1 0 011 1v14a1 1 0 01-1 1H4a1 1 0 01-1-1V5a1 1 0 011-1z"/></svg>
-                                        </div>
-                                        <div id="p-banner-spinner" class="hidden absolute inset-0 bg-white/85 flex items-center justify-center">
-                                            <svg class="w-5 h-5 animate-spin text-slate-400" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                                        </div>
-                                    </div>
-                                    <div class="flex-1 min-w-0">
-                                        <button type="button" onclick="document.getElementById('p-banner-input').click()" class="inline-flex items-center gap-2 py-2.5 px-4 rounded-xl text-xs font-bold uppercase tracking-wider bg-obsidian text-white hover:bg-blue-800 hover:text-white transition-colors cursor-pointer">
-                                            Elegir imagen
-                                        </button>
-                                        <input type="file" id="p-banner-input" accept="image/jpeg,image/jpg,image/png,image/webp" onchange="manejarSeleccionBanner(event)" class="hidden">
-                                        <p class="text-[11px] text-slate-400 mt-1.5">Imagen ancha para arriba de tu perfil público. JPG, PNG o WebP · máx 3MB</p>
-                                        <input type="hidden" id="p-banner">
-                                    </div>
-                                </div>
+                                <div id="p-banners-lista" class="grid grid-cols-3 gap-2 sm:gap-3"></div>
+                                <input type="file" id="p-banner-input" accept="image/jpeg,image/jpg,image/png,image/webp" onchange="manejarSeleccionBanner(event)" class="hidden">
+                                <p class="text-[11px] text-slate-400 mt-2">Imagen ancha para arriba de tu perfil público. Si subís más de una, se muestran una tras otra (ideal para sumar un banner de oferta). La primera es la principal. JPG, PNG o WebP · máx 3MB cada una</p>
                             </div>
 
                             <div id="campo-descripcion-bio">
@@ -2012,6 +2089,78 @@
                 </div>
             </section>
 
+            <!-- SECCIÓN: DISEÑO DE LA TIENDA (color principal + tipografía) -->
+            <section id="section-diseno" class="hidden animate-fade-in">
+                <header class="mb-6 md:mb-10 pb-6 border-b border-slate-200/80">
+                    <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
+                        <h1 class="text-2xl md:text-4xl font-extrabold tracking-tight text-slate-900">Diseño de tu tienda</h1>
+                        <span id="dz-pronto-pill" class="text-[11px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-blue-100 text-blue-800">Próximamente</span>
+                    </div>
+                    <p class="text-slate-500 text-sm md:text-base mt-2">Elegí el color y la tipografía que mejor representen a tu marca. Se ve en tu tienda apenas guardás.</p>
+                </header>
+
+                <div class="dz-wrap">
+                <div id="dz-bloqueo" class="dz-bloqueo">
+                    <div class="dz-bloqueo-card" role="status">
+                        <div class="w-14 h-14 mx-auto rounded-2xl bg-slate-900 text-white flex items-center justify-center">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 10-8 0v4m-2 0h12a1 1 0 011 1v7a1 1 0 01-1 1H6a1 1 0 01-1-1v-7a1 1 0 011-1z"/></svg>
+                        </div>
+                        <span class="inline-block mt-4 text-[11px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-blue-100 text-blue-800">Próximamente</span>
+                        <h2 class="mt-3 text-xl sm:text-2xl font-extrabold tracking-tight text-slate-900">Diseño de tienda</h2>
+                        <p class="mt-2 text-sm text-slate-500 leading-relaxed">Estamos preparando algo grande: vas a poder personalizar tu tienda con los colores y la tipografía de tu marca, para que se vea única.</p>
+                        <div class="mt-4 flex flex-wrap justify-center gap-2">
+                            <span class="text-xs font-bold px-3 py-1.5 rounded-full bg-slate-100 text-slate-600">Colores de tu marca</span>
+                            <span class="text-xs font-bold px-3 py-1.5 rounded-full bg-slate-100 text-slate-600">Tipografías a elección</span>
+                            <span class="text-xs font-bold px-3 py-1.5 rounded-full bg-slate-100 text-slate-600">Vista previa en vivo</span>
+                        </div>
+                        <p class="mt-4 text-xs font-semibold text-slate-400">Lo vas a ver acá apenas esté disponible.</p>
+                    </div>
+                </div>
+                <div id="dz-contenido" class="dz-contenido dz-bloqueado" inert aria-hidden="true">
+                <div class="dz-grid">
+                    <div class="dz-opciones">
+                        <div class="dz-card">
+                            <h2>Color principal</h2>
+                            <p class="dz-hint">Se usa en botones, el carrito, la cinta de anuncios y las etiquetas. El texto se adapta solo para que siempre se lea bien.</p>
+                            <div id="dz-colores" class="dz-swatches"></div>
+                            <p id="dz-color-aviso" class="dz-aviso hidden" role="alert"></p>
+                        </div>
+                        <div class="dz-card">
+                            <h2>Tipografía</h2>
+                            <p class="dz-hint">Las letras de los nombres, títulos y textos de tu tienda.</p>
+                            <div id="dz-fuentes" class="dz-fuentes"></div>
+                        </div>
+                    </div>
+
+                    <div class="dz-vista">
+                        <p class="dz-vista-titulo">Así se va a ver</p>
+                        <div id="dz-preview">
+                            <div class="dz-pv-cinta">¡Promo de hoy! Consultá por WhatsApp</div>
+                            <div class="dz-pv-banner"></div>
+                            <div class="dz-pv-body">
+                                <div id="dz-pv-logo" class="dz-pv-logo"></div>
+                                <div id="dz-pv-nombre" class="dz-pv-nombre"></div>
+                                <span class="dz-pv-pill">Escribinos por WhatsApp</span>
+                                <div class="dz-pv-prod">
+                                    <div class="dz-pv-img"></div>
+                                    <div class="dz-pv-info"><p class="dz-pv-nom">Nombre del producto</p><p class="dz-pv-precio">$12.500</p></div>
+                                    <span class="dz-pv-add" aria-hidden="true">+</span>
+                                </div>
+                                <span class="dz-pv-btn">Agregar al carrito</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="dz-actions">
+                    <a id="dz-ver-tienda" href="#" target="_blank" rel="noopener" class="dz-link">Ver mi tienda</a>
+                    <button type="button" onclick="restablecerDiseno()" class="dz-btn dz-btn-ghost">Restablecer</button>
+                    <button type="button" id="btn-guardar-diseno" onclick="guardarDiseno()" class="dz-btn dz-btn-primary">Guardar diseño</button>
+                </div>
+                </div>
+                </div>
+            </section>
+
             <!-- SECCIÓN: NUEVO / EDITAR PRODUCTO (página completa, reemplaza al viejo modal) -->
             <section id="section-producto-form" data-paso="1" class="hidden animate-fade-in">
                 <header class="mb-4 md:mb-8 pb-4 md:pb-6 border-b border-slate-200/80">
@@ -2134,6 +2283,22 @@
                                     </label>
                                 </div>
                                 <p class="field-hint" id="hint-nuevo" style="margin-top: -0.4rem;">El cartel "Nuevo" se muestra en la tienda por 5 días desde que lo activás; después desaparece solo.</p>
+                                <div class="form-group" id="badges-producto-wrap">
+                                    <label>Carteles del producto</label>
+                                    <p class="field-hint">Opcional. Sumá carteles como "Promoción" o "2x1" y elegí el color. Se ven sobre la foto en la tienda (hasta 3 por producto).</p>
+                                    <div id="badges-producto-lista" class="badge-lista"></div>
+                                    <div id="badge-editor">
+                                        <div id="badges-producto-sugeridos" class="tag-picker"></div>
+                                        <div class="badge-creador">
+                                            <input type="text" id="badge-texto" maxlength="18" placeholder="Escribí tu cartel (ej: 2x1)" autocomplete="off" oninput="actualizarPreviewBadge()" onkeydown="if (event.key === 'Enter') { event.preventDefault(); agregarBadgeProducto(); }">
+                                            <button type="button" class="btn btn-ghost btn-sm" onclick="agregarBadgeProducto()">Agregar</button>
+                                        </div>
+                                        <div class="badge-color-fila">
+                                            <div id="badge-colores" class="badge-colores"></div>
+                                            <span id="badge-preview" class="badge-item">Vista previa</span>
+                                        </div>
+                                    </div>
+                                </div>
                                 <div class="form-group" id="medios-pago-producto-wrap">
                                     <label>Medios de pago aceptados</label>
                                     <p class="field-hint">Opcional. Si no marcás ninguno, se muestran todos los medios configurados en tu perfil.</p>
